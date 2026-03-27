@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/xo/dburl v0.24.2
-	github.com/xo/usql v0.21.3
+	github.com/xo/usql v0.21.4
 )
 
 require (
