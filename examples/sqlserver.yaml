@@ -1,0 +1,17 @@
+# SQL Server
+connections:
+  dev:
+    dsn: "mssql://sa:MyPassword123@localhost:1433/mydb?encrypt=disable"
+    permission: read-write
+    timeout: 15000
+
+  prod:
+    dsn: $MSSQL_URL
+    permission: read-only
+    timeout: 30000
+    max_rows: 500
+
+defaults:
+  permission: read-only
+  timeout: 30000
+  max_rows: 500

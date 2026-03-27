@@ -1,0 +1,107 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build-sidecar:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            suffix: linux-arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            suffix: windows-amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.22"
+          cache-dependency-path: sidecar/go.sum
+
+      - name: Build sidecar
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: ${{ matrix.goos == 'linux' && '0' || '1' }}
+        run: |
+          cd sidecar
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            go build -o omnibase-sidecar-${{ matrix.suffix }}.exe .
+          else
+            go build -o omnibase-sidecar-${{ matrix.suffix }} .
+          fi
+
+      - name: Upload release asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd sidecar
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            gh release upload ${{ needs.release-please.outputs.tag_name }} \
+              omnibase-sidecar-${{ matrix.suffix }}.exe
+          else
+            gh release upload ${{ needs.release-please.outputs.tag_name }} \
+              omnibase-sidecar-${{ matrix.suffix }}
+          fi
+
+  publish-npm:
+    needs: [release-please, build-sidecar]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm run build
+      - run: npm install -g npm@latest
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
