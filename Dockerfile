@@ -1,5 +1,5 @@
 # Stage 1: Build Go sidecar
-FROM golang:1.22-alpine AS sidecar-builder
+FROM golang:1.26-alpine AS sidecar-builder
 RUN apk add --no-cache gcc musl-dev
 WORKDIR /build
 COPY sidecar/go.mod sidecar/go.sum ./
