@@ -1,0 +1,22 @@
+# Omnibase configuration
+# DSNs starting with $ are resolved from environment variables.
+
+connections:
+  local-sqlite:
+    dsn: sqlite:./dev.db
+    permission: admin
+    timeout: 5000
+
+  # Example PostgreSQL connection (uncomment and set PROD_PG_DSN env var):
+  # prod-pg:
+  #   dsn: $PROD_PG_DSN
+  #   permission: read-only
+  #   timeout: 30000
+  #   max_rows: 500
+  #   schema_filter:
+  #     schemas: [public]
+
+defaults:
+  permission: read-only
+  timeout: 30000
+  max_rows: 500

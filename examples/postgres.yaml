@@ -1,0 +1,21 @@
+# PostgreSQL
+connections:
+  # Local development — inline credentials
+  dev:
+    dsn: "pg://myuser:mypassword@localhost:5432/mydb?sslmode=disable"
+    permission: read-write
+    timeout: 10000
+
+  # Production — credentials from environment variable
+  prod:
+    dsn: $DATABASE_URL
+    permission: read-only
+    timeout: 30000
+    max_rows: 500
+    schema_filter:
+      schemas: [public]
+
+defaults:
+  permission: read-only
+  timeout: 30000
+  max_rows: 500

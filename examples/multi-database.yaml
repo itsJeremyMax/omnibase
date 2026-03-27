@@ -1,0 +1,28 @@
+# Multiple databases in one config
+# Agents can switch between connections by name.
+connections:
+  app-db:
+    dsn: "pg://appuser:secret@localhost:5432/appdb?sslmode=disable"
+    permission: read-write
+    timeout: 10000
+    read_only_tables:
+      - users
+      - audit_log
+
+  analytics:
+    dsn: "pg://readonly:secret@analytics-host:5432/analytics"
+    permission: read-only
+    timeout: 30000
+    max_rows: 1000
+    schema_filter:
+      schemas: [public, reporting]
+
+  local-cache:
+    dsn: "sqlite:./cache.db"
+    permission: admin
+    timeout: 5000
+
+defaults:
+  permission: read-only
+  timeout: 30000
+  max_rows: 500
