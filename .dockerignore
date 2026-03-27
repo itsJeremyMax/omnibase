@@ -1,0 +1,12 @@
+node_modules/
+dist/
+sidecar/omnibase-sidecar
+*.db
+*.env
+.git/
+.github/
+docs/
+tests/
+tests-integration/
+coverage/
+.husky/

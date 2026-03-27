@@ -1,0 +1,11 @@
+# SQLite — local file database
+connections:
+  local:
+    dsn: "sqlite:./my-database.db"
+    permission: read-write
+    timeout: 5000
+
+defaults:
+  permission: read-only
+  timeout: 30000
+  max_rows: 500

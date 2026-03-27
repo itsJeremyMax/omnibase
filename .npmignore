@@ -1,0 +1,23 @@
+# Source (dist/ is published, src/ is not)
+src/
+
+# Sidecar — binary is downloaded at install time, source not needed
+sidecar/
+
+# Tests
+tests/
+tests-integration/
+
+# Dev config
+.github/
+.husky/
+.editorconfig
+.prettierrc
+.prettierignore
+.nvmrc
+commitlint.config.js
+vitest.config.ts
+vitest.integration.config.ts
+Dockerfile
+.dockerignore
+CONTRIBUTING.md
