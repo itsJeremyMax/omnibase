@@ -1,0 +1,68 @@
+{
+  "name": "omnibase-mcp",
+  "version": "0.1.2",
+  "description": "Universal database MCP server for AI agents",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itsJeremyMax/omnibase.git"
+  },
+  "homepage": "https://github.com/itsJeremyMax/omnibase",
+  "bugs": "https://github.com/itsJeremyMax/omnibase/issues",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/",
+    "provenance": true
+  },
+  "main": "dist/src/index.js",
+  "bin": {
+    "omnibase-mcp": "dist/src/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:all": "tsc && pnpm run build:sidecar",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:docker:up": "docker compose -f tests-integration/docker-compose.yml up -d --wait",
+    "test:docker:down": "docker compose -f tests-integration/docker-compose.yml down -v",
+    "build:sidecar": "cd sidecar && go build -o omnibase-sidecar .",
+    "start": "node dist/src/index.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "tsc --noEmit",
+    "prepare": "husky",
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "lint-staged": {
+    "*.{ts,js,json,yaml,yml}": "prettier --write"
+  },
+  "keywords": [
+    "mcp",
+    "database",
+    "sql",
+    "agent",
+    "ai",
+    "usql",
+    "postgres",
+    "mysql",
+    "sqlite"
+  ],
+  "author": "Jeremy Max",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.28.0",
+    "node-sql-parser": "^5.4.0",
+    "yaml": "^2.8.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@types/node": "^25.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.1",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}

@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: omnibase
+      POSTGRES_PASSWORD: omnibase
+      POSTGRES_DB: testdb
+    ports:
+      - "15432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omnibase"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: omnibase
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: omnibase
+      MYSQL_PASSWORD: omnibase
+    ports:
+      - "13306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "omnibase", "-pomnibase"]
+      interval: 2s
+      timeout: 5s
+      retries: 10

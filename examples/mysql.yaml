@@ -1,0 +1,17 @@
+# MySQL / MariaDB
+connections:
+  dev:
+    dsn: "my://myuser:mypassword@localhost:3306/mydb"
+    permission: read-write
+    timeout: 10000
+
+  prod:
+    dsn: $MYSQL_URL
+    permission: read-only
+    timeout: 30000
+    max_rows: 500
+
+defaults:
+  permission: read-only
+  timeout: 30000
+  max_rows: 500
