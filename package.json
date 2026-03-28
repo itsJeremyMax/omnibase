@@ -1,6 +1,6 @@
 {
   "name": "omnibase-mcp",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "description": "Universal database MCP server for AI agents",
   "license": "Apache-2.0",
   "repository": {
