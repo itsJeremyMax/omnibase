@@ -7,6 +7,7 @@ dist/
 # Go sidecar binary (all platforms)
 sidecar/omnibase-sidecar
 sidecar/omnibase-sidecar.exe
+sidecar/.sidecar-version
 
 # Environment / secrets
 *.env

@@ -65,7 +65,7 @@ async function main() {
     // Don't exit — start the server and return a helpful error on every tool call.
     // This lets the MCP client connect and see the error instead of a silent failure.
     console.error(
-      "omnibase: no config file found. Create omnibase.config.yaml in your project directory.",
+      "omnibase: no config file found. Run `npx omnibase-mcp@latest init` to create one, or see https://github.com/itsJeremyMax/omnibase#get-started",
     );
     const server = new McpServer({ name: "omnibase", version: VERSION });
     server.tool("list_connections", "List all configured database connections", {}, async () => ({
@@ -75,7 +75,7 @@ async function main() {
           text: JSON.stringify({
             error: true,
             message:
-              "No omnibase.config.yaml found. Create one in your project directory, set OMNIBASE_CONFIG env var, or copy an example from https://github.com/itsJeremyMax/omnibase/tree/main/examples",
+              "No omnibase.config.yaml found. Run `npx omnibase-mcp@latest init` to create one, set OMNIBASE_CONFIG env var, or see https://github.com/itsJeremyMax/omnibase#get-started",
           }),
         },
       ],

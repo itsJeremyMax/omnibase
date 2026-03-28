@@ -1,10 +1,19 @@
 #!/usr/bin/env node
 
 // Downloads the correct Go sidecar binary for the user's platform.
-// Tries in order: existing binary → GitHub release download → Go build from source.
+// Manages sidecar lifecycle: downloads on first install, re-downloads on version
+// change, and falls back to Go build from source if needed.
 
 const { execSync } = require("child_process");
-const { existsSync, mkdirSync, chmodSync, createWriteStream, unlinkSync } = require("fs");
+const {
+  existsSync,
+  mkdirSync,
+  chmodSync,
+  createWriteStream,
+  unlinkSync,
+  readFileSync,
+  writeFileSync,
+} = require("fs");
 const { join } = require("path");
 const os = require("os");
 const https = require("https");
@@ -13,6 +22,7 @@ const http = require("http");
 const REPO = "itsJeremyMax/omnibase";
 const BINARY_NAME = "omnibase-sidecar";
 const SIDECAR_DIR = join(__dirname, "..", "sidecar");
+const VERSION_FILE = join(SIDECAR_DIR, ".sidecar-version");
 
 // Read version from package.json
 const packageJson = require(join(__dirname, "..", "package.json"));
@@ -46,6 +56,18 @@ function getLocalBinaryPath() {
   return join(SIDECAR_DIR, isWindows ? `${BINARY_NAME}.exe` : BINARY_NAME);
 }
 
+function getInstalledVersion() {
+  try {
+    return readFileSync(VERSION_FILE, "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+
+function writeInstalledVersion() {
+  writeFileSync(VERSION_FILE, VERSION);
+}
+
 function download(url, dest) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith("https") ? https : http;
@@ -76,11 +98,22 @@ function download(url, dest) {
 
 async function main() {
   const binaryPath = getLocalBinaryPath();
+  const installedVersion = getInstalledVersion();
+  const binaryExists = existsSync(binaryPath);
 
-  // 1. Skip if binary already exists
-  if (existsSync(binaryPath)) {
-    console.log("omnibase-sidecar binary already exists, skipping download.");
+  // Skip if binary exists and version matches
+  if (binaryExists && installedVersion === VERSION) {
+    console.log(`omnibase-sidecar ${VERSION} already installed.`);
     return;
+  }
+
+  // Log why we're (re)downloading
+  if (binaryExists && installedVersion && installedVersion !== VERSION) {
+    console.log(`Upgrading omnibase-sidecar from ${installedVersion} to ${VERSION}...`);
+    unlinkSync(binaryPath);
+  } else if (binaryExists && !installedVersion) {
+    console.log(`omnibase-sidecar binary found without version info, re-downloading ${VERSION}...`);
+    unlinkSync(binaryPath);
   }
 
   if (!existsSync(SIDECAR_DIR)) {
@@ -89,15 +122,16 @@ async function main() {
 
   const platformKey = getPlatformKey();
 
-  // 2. Try downloading from GitHub releases
+  // Try downloading from GitHub releases
   if (platformKey) {
     const assetName = getBinaryName(platformKey);
     const url = `https://github.com/${REPO}/releases/download/omnibase-mcp-v${VERSION}/${assetName}`;
-    console.log(`Downloading omnibase-sidecar for ${platformKey}...`);
+    console.log(`Downloading omnibase-sidecar ${VERSION} for ${platformKey}...`);
 
     try {
       await download(url, binaryPath);
       chmodSync(binaryPath, 0o755);
+      writeInstalledVersion();
       console.log("omnibase-sidecar downloaded successfully.");
       return;
     } catch (err) {
@@ -106,7 +140,7 @@ async function main() {
     }
   }
 
-  // 3. Try building from source if Go is available
+  // Try building from source if Go is available
   try {
     execSync("go version", { stdio: "ignore" });
     console.log("Go detected. Building sidecar from source...");
@@ -114,13 +148,14 @@ async function main() {
       stdio: "inherit",
     });
     chmodSync(binaryPath, 0o755);
+    writeInstalledVersion();
     console.log("omnibase-sidecar built successfully.");
     return;
   } catch {
     // Go not available
   }
 
-  // 4. Nothing worked — print instructions
+  // Nothing worked
   console.log(
     `\nomnibase-sidecar binary not found.\n\n` +
       `Options:\n` +

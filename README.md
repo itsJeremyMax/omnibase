@@ -20,7 +20,7 @@ Agent: [calls get_table_stats] → shows null percentages per column across all 
 **1. Add to Claude Code:**
 
 ```bash
-claude mcp add omnibase -- npx -y omnibase-mcp
+claude mcp add omnibase -- npx -y omnibase-mcp@latest
 ```
 
 <details>
