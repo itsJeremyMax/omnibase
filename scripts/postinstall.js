@@ -92,7 +92,7 @@ async function main() {
   // 2. Try downloading from GitHub releases
   if (platformKey) {
     const assetName = getBinaryName(platformKey);
-    const url = `https://github.com/${REPO}/releases/download/v${VERSION}/${assetName}`;
+    const url = `https://github.com/${REPO}/releases/download/omnibase-mcp-v${VERSION}/${assetName}`;
     console.log(`Downloading omnibase-sidecar for ${platformKey}...`);
 
     try {
