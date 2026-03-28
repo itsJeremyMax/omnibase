@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.21](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.20...omnibase-mcp-v0.1.21) (2026-03-28)
+
+
+### Features
+
+* sidecar version management and improved onboarding ([0e60853](https://github.com/itsJeremyMax/omnibase/commit/0e60853ff6776b1ecefc842d408d716c662341aa))
+
+
+### Bug Fixes
+
+* increase postinstall test timeout and ensure sidecar is executable ([588116a](https://github.com/itsJeremyMax/omnibase/commit/588116ac54ebdd6e51e175dde833ae5369e84a46))
+
 ## [0.1.20](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.19...omnibase-mcp-v0.1.20) (2026-03-28)
 
 
