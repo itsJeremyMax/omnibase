@@ -116,6 +116,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm run build
+      - run: npm install -g npm@latest
 
       - name: Publish to npm
         run: npm publish --provenance --access public
