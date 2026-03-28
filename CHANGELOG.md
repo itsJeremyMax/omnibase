@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.13...omnibase-mcp-v0.1.14) (2026-03-28)
+
+
+### Bug Fixes
+
+* unset NODE_AUTH_TOKEN instead of emptying it ([ea176c8](https://github.com/itsJeremyMax/omnibase/commit/ea176c80243b8106047dbe1c856cc5ae95869559))
+
 ## [0.1.13](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.12...omnibase-mcp-v0.1.13) (2026-03-28)
 
 
