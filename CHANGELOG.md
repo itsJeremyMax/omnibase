@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.17...omnibase-mcp-v0.1.18) (2026-03-28)
+
+
+### Bug Fixes
+
+* remove provenance config and force node24 for release-please ([f0f7574](https://github.com/itsJeremyMax/omnibase/commit/f0f75741771426988df1163b62d813ba35663d8f))
+
 ## [0.1.17](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.16...omnibase-mcp-v0.1.17) (2026-03-28)
 
 
