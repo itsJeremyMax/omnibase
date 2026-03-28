@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.5...omnibase-mcp-v0.1.6) (2026-03-28)
+
+
+### Bug Fixes
+
+* use bash shell for windows sidecar build ([d84893a](https://github.com/itsJeremyMax/omnibase/commit/d84893a64c17f96500d8954f7f4e8971049f6503))
+
 ## [0.1.5](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.4...omnibase-mcp-v0.1.5) (2026-03-28)
 
 
