@@ -30,7 +30,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "tsc --noEmit",
-    "prepare": "husky",
+    "prepare": "node -e \"if (!process.env.CI) require('child_process').execSync('husky', {stdio:'inherit'})\"",
     "postinstall": "node scripts/postinstall.js"
   },
   "lint-staged": {
