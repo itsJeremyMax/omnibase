@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.8...omnibase-mcp-v0.1.9) (2026-03-28)
+
+
+### Bug Fixes
+
+* upgrade npm to latest before publish ([5ec174a](https://github.com/itsJeremyMax/omnibase/commit/5ec174a9a62cc9febf156eddd04bcff461fe8080))
+
 ## [0.1.8](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.7...omnibase-mcp-v0.1.8) (2026-03-28)
 
 
