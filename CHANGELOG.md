@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.11...omnibase-mcp-v0.1.12) (2026-03-28)
+
+
+### Bug Fixes
+
+* use OIDC Trusted Publishing for npm auth ([05fecbf](https://github.com/itsJeremyMax/omnibase/commit/05fecbfd116e7bb39a88aa7254558383f858ca8b))
+
 ## [0.1.11](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.10...omnibase-mcp-v0.1.11) (2026-03-28)
 
 
