@@ -112,12 +112,12 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm run build
-      - name: Remove setup-node auth token (using OIDC Trusted Publishing)
-        run: sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG" 2>/dev/null || true
+      - run: npm install -g npm@latest
 
-      - name: Publish to npm
+      - name: Publish to npm (OIDC Trusted Publishing)
         run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ""
