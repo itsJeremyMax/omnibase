@@ -36,7 +36,7 @@ jobs:
             goos: linux
             goarch: arm64
             suffix: linux-arm64
-          - os: macos-latest
+          - os: macos-13
             goos: darwin
             goarch: amd64
             suffix: darwin-amd64
@@ -87,6 +87,7 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
