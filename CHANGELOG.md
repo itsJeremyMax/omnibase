@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.14...omnibase-mcp-v0.1.15) (2026-03-28)
+
+
+### Bug Fixes
+
+* restore registry-url and ensure npm &gt;= 11.5.1 for OIDC ([6b5953d](https://github.com/itsJeremyMax/omnibase/commit/6b5953d1c79a3db006cb5cee9f506f4e652d17dc))
+
 ## [0.1.14](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.13...omnibase-mcp-v0.1.14) (2026-03-28)
 
 
