@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.20](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.19...omnibase-mcp-v0.1.20) (2026-03-28)
+
+
+### Bug Fixes
+
+* use correct release tag format in sidecar download URL ([6822aa6](https://github.com/itsJeremyMax/omnibase/commit/6822aa697a24a1062f9655fca46dc03831150b79))
+
 ## [0.1.19](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.18...omnibase-mcp-v0.1.19) (2026-03-28)
 
 
