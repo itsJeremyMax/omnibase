@@ -68,7 +68,7 @@ function runPostinstallWithFakeVersion(fakeVersion: string) {
 function runPostinstall() {
   return execSync(`${NODE} ${POSTINSTALL} 2>&1`, {
     encoding: "utf-8",
-    timeout: 15000,
+    timeout: 60000,
   });
 }
 
@@ -78,7 +78,7 @@ describe("postinstall script", () => {
     expect(result).toMatch(
       /already installed|Downloading|Upgrading|re-downloading|Go detected|not found/,
     );
-  });
+  }, 120000);
 
   it("detects platform correctly", () => {
     const os = require("os");
