@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.7...omnibase-mcp-v0.1.8) (2026-03-28)
+
+
+### Bug Fixes
+
+* npm trusted publishing auth ([9622fd7](https://github.com/itsJeremyMax/omnibase/commit/9622fd7ac1cbb0cafad132d557eb270a255720ee))
+
 ## [0.1.7](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.6...omnibase-mcp-v0.1.7) (2026-03-28)
 
 
