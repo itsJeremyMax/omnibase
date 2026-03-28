@@ -26,28 +26,34 @@ jobs:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
             suffix: linux-amd64
+            cc: gcc
           - os: ubuntu-latest
             goos: linux
             goarch: arm64
             suffix: linux-arm64
-          - os: macos-13
+            cc: aarch64-linux-gnu-gcc
+          - os: macos-15-intel
             goos: darwin
             goarch: amd64
             suffix: darwin-amd64
+            cc: ""
           - os: macos-latest
             goos: darwin
             goarch: arm64
             suffix: darwin-arm64
+            cc: ""
           - os: windows-latest
             goos: windows
             goarch: amd64
             suffix: windows-amd64
+            cc: ""
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -56,11 +62,16 @@ jobs:
           go-version: "1.26"
           cache-dependency-path: sidecar/go.sum
 
+      - name: Install cross-compiler
+        if: matrix.cc == 'aarch64-linux-gnu-gcc'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
       - name: Build sidecar
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: ${{ matrix.goos == 'linux' && '0' || '1' }}
+          CGO_ENABLED: "1"
+          CC: ${{ matrix.cc }}
         run: |
           cd sidecar
           if [ "${{ matrix.goos }}" = "windows" ]; then
