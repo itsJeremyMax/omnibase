@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.15...omnibase-mcp-v0.1.16) (2026-03-28)
+
+
+### Bug Fixes
+
+* use granular access token for npm publish ([7969e49](https://github.com/itsJeremyMax/omnibase/commit/7969e49afe6669587d8d2886650200042c3b7d3c))
+
 ## [0.1.15](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.14...omnibase-mcp-v0.1.15) (2026-03-28)
 
 
