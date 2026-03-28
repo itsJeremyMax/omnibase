@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.10...omnibase-mcp-v0.1.11) (2026-03-28)
+
+
+### Bug Fixes
+
+* find correct .npmrc location for token removal ([7f09beb](https://github.com/itsJeremyMax/omnibase/commit/7f09beba40e4c4f84b1624f0a83b2ffc1c1ca727))
+
 ## [0.1.10](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.9...omnibase-mcp-v0.1.10) (2026-03-28)
 
 
