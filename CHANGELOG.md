@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.6...omnibase-mcp-v0.1.7) (2026-03-28)
+
+
+### Bug Fixes
+
+* remove registry-url from setup-node for trusted publishing ([7248c32](https://github.com/itsJeremyMax/omnibase/commit/7248c32411b22bf00ba30e6ca245beb951dda25c))
+
 ## [0.1.6](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.5...omnibase-mcp-v0.1.6) (2026-03-28)
 
 
