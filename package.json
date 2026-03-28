@@ -11,8 +11,7 @@
   "bugs": "https://github.com/itsJeremyMax/omnibase/issues",
   "publishConfig": {
     "access": "public",
-    "registry": "https://registry.npmjs.org/",
-    "provenance": true
+    "registry": "https://registry.npmjs.org/"
   },
   "main": "dist/src/index.js",
   "bin": {
