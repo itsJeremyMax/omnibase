@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.18...omnibase-mcp-v0.1.19) (2026-03-28)
+
+
+### Bug Fixes
+
+* use direct registry API for npm publish ([9a612e4](https://github.com/itsJeremyMax/omnibase/commit/9a612e44e9178d291f60a5918690eb06510ae938))
+
 ## [0.1.18](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.17...omnibase-mcp-v0.1.18) (2026-03-28)
 
 
