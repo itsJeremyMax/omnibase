@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.9...omnibase-mcp-v0.1.10) (2026-03-28)
+
+
+### Bug Fixes
+
+* strip auth token placeholder so npm uses OIDC ([3ee23ad](https://github.com/itsJeremyMax/omnibase/commit/3ee23adbaa51e8ba708b3b470c4f77f09c475cb1))
+
 ## [0.1.9](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.8...omnibase-mcp-v0.1.9) (2026-03-28)
 
 
