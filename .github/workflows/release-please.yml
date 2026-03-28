@@ -112,10 +112,11 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+          registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm run build
       - run: npm install -g npm@latest
 
       - name: Publish to npm (OIDC Trusted Publishing)
-        run: unset NODE_AUTH_TOKEN && npm publish --provenance --access public
+        run: npm publish --provenance --access public
