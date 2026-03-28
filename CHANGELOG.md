@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.16...omnibase-mcp-v0.1.17) (2026-03-28)
+
+
+### Bug Fixes
+
+* drop provenance/OIDC and use token-only npm publish ([736e16b](https://github.com/itsJeremyMax/omnibase/commit/736e16b5522a73613bf8619a640d5acd855b3be2))
+
 ## [0.1.16](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.15...omnibase-mcp-v0.1.16) (2026-03-28)
 
 
