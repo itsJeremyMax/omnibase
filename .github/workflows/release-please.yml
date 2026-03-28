@@ -119,7 +119,7 @@ jobs:
       - run: npm install -g npm@latest
 
       - name: Remove token placeholder from .npmrc
-        run: sed -i '/_authToken/d' ~/.npmrc
+        run: sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG" 2>/dev/null || sed -i '/_authToken/d' .npmrc 2>/dev/null || true
 
       - name: Publish to npm
         run: npm publish --provenance --access public
