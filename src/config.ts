@@ -22,24 +22,26 @@ interface RawConfig {
       read_only_tables?: string[];
     }
   >;
-  defaults: {
-    permission: string;
-    timeout: number;
-    max_rows: number;
+  defaults?: {
+    permission?: string;
+    timeout?: number;
+    max_rows?: number;
   };
 }
+
+const DEFAULT_PERMISSION: PermissionLevel = "read-only";
+const DEFAULT_TIMEOUT = 30000;
+const DEFAULT_MAX_ROWS = 500;
 
 export function parseConfig(yamlContent: string): OmnibaseConfig {
   const raw = parseYaml(yamlContent) as RawConfig;
 
-  if (!raw.defaults) {
-    throw new Error("Config must have a 'defaults' section");
-  }
-
   const defaults = {
-    permission: validatePermission(raw.defaults.permission),
-    timeout: raw.defaults.timeout,
-    maxRows: raw.defaults.max_rows,
+    permission: raw.defaults?.permission
+      ? validatePermission(raw.defaults.permission)
+      : DEFAULT_PERMISSION,
+    timeout: raw.defaults?.timeout ?? DEFAULT_TIMEOUT,
+    maxRows: raw.defaults?.max_rows ?? DEFAULT_MAX_ROWS,
   };
 
   const connections: Record<string, ConnectionConfig> = {};

@@ -95,6 +95,32 @@ defaults:
     expect(() => parseConfig(yaml)).toThrow("permission");
   });
 
+  it("uses built-in defaults when defaults section is omitted", () => {
+    const yaml = `
+connections:
+  local:
+    dsn: sqlite:./test.db
+`;
+    const config = parseConfig(yaml);
+    expect(config.connections.local.permission).toBe("read-only");
+    expect(config.connections.local.timeout).toBe(30000);
+    expect(config.connections.local.maxRows).toBe(500);
+  });
+
+  it("allows partial defaults section", () => {
+    const yaml = `
+connections:
+  local:
+    dsn: sqlite:./test.db
+defaults:
+  permission: admin
+`;
+    const config = parseConfig(yaml);
+    expect(config.connections.local.permission).toBe("admin");
+    expect(config.connections.local.timeout).toBe(30000);
+    expect(config.connections.local.maxRows).toBe(500);
+  });
+
   it("parses schema_filter", () => {
     const yaml = `
 connections:
