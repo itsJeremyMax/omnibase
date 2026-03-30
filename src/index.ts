@@ -26,17 +26,12 @@ import { handleTestConnection } from "./tools/test-connection.js";
 import { OmnibaseError } from "./types.js";
 
 const STARTER_CONFIG = `# Omnibase configuration
-# Docs: https://github.com/itsJeremyMax/omnibase
+# All options: https://github.com/itsJeremyMax/omnibase#configuration-reference
 
 connections:
   my-db:
     dsn: "sqlite:./my-database.db"  # or pg://user:pass@host/db, my://user:pass@host/db
-    permission: read-write            # read-only | read-write | admin
-
-defaults:
-  permission: read-only
-  timeout: 30000
-  max_rows: 500
+    permission: read-write            # read-only (default) | read-write | admin
 `;
 
 function handleInit(): void {

@@ -1,4 +1,5 @@
 # Omnibase configuration
+# All options: https://github.com/itsJeremyMax/omnibase#configuration-reference
 # DSNs starting with $ are resolved from environment variables.
 
 connections:
@@ -16,7 +17,8 @@ connections:
   #   schema_filter:
   #     schemas: [public]
 
-defaults:
-  permission: read-only
-  timeout: 30000
-  max_rows: 500
+# Optional — override built-in defaults (read-only, 30s timeout, 500 max rows)
+# defaults:
+#   permission: read-only
+#   timeout: 30000
+#   max_rows: 500

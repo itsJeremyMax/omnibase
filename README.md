@@ -3,11 +3,11 @@
 Give your AI agent secure access to any database. PostgreSQL, MySQL, SQLite, and [50+ more](https://github.com/xo/usql) through a single MCP server. Works with Claude Code, OpenCode, GitHub Copilot, Cursor, and any MCP-compatible client.
 
 ```yaml
-# omnibase.config.yaml
+# omnibase.config.yaml — all options: https://github.com/itsJeremyMax/omnibase#configuration-reference
 connections:
   prod:
     dsn: $DATABASE_URL     # credentials stay in your environment
-    permission: read-only   # agent can query, but never modify
+    permission: read-only   # read-only | read-write | admin
 ```
 
 ```
@@ -47,18 +47,13 @@ Add to your MCP config (`.mcp.json`):
 npx omnibase-mcp init
 ```
 
-Edit `omnibase.config.yaml` with your database connection ([more examples](examples/)):
+Edit `omnibase.config.yaml` with your database connection ([all options](#configuration-reference), [more examples](examples/)):
 
 ```yaml
 connections:
   my-db:
     dsn: "pg://myuser:mypassword@localhost:5432/mydb"
     permission: read-write
-
-defaults:
-  permission: read-only
-  timeout: 30000
-  max_rows: 500
 ```
 
 DSNs starting with `$` resolve from environment variables (e.g. `dsn: $DATABASE_URL`).
@@ -159,6 +154,12 @@ connections:
       - audit_log
     schema_filter:              # optional — limit visible schemas/tables
       schemas: [public]
+
+# Optional — override built-in defaults
+defaults:
+  permission: read-only         # default permission for connections that don't specify one
+  timeout: 30000                # default query timeout in ms
+  max_rows: 500                 # default max rows returned per query
 ```
 
 ### Config discovery
