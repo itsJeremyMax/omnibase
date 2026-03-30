@@ -9,6 +9,7 @@ import {
   CustomToolConfig,
   CustomToolParameterType,
 } from "./types.js";
+import { extractSqlDescription } from "./custom-tools.js";
 
 const VALID_PERMISSIONS: PermissionLevel[] = ["read-only", "read-write", "admin"];
 
@@ -107,9 +108,10 @@ export function parseConfig(yamlContent: string): OmnibaseConfig {
   if (raw.tools && Object.keys(raw.tools).length > 0) {
     tools = {};
     for (const [name, rawTool] of Object.entries(raw.tools)) {
+      const sqlDescription = extractSqlDescription(rawTool.sql!);
       const tool: CustomToolConfig = {
         connection: rawTool.connection!,
-        description: rawTool.description!,
+        description: rawTool.description ?? sqlDescription,
         sql: rawTool.sql!,
       };
 

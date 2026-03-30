@@ -43,6 +43,24 @@ export function extractPlaceholders(sql: string): string[] {
 }
 
 /**
+ * Extract leading `-- ` comment lines from a SQL template and join them
+ * into a single description string. Returns undefined if no comments found.
+ */
+export function extractSqlDescription(sql: string): string | undefined {
+  const lines = sql.split("\n");
+  const commentLines: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith("-- ")) {
+      commentLines.push(trimmed.slice(3).trim());
+    } else if (trimmed !== "") {
+      break;
+    }
+  }
+  return commentLines.length > 0 ? commentLines.join(" ") : undefined;
+}
+
+/**
  * Validate all custom tool definitions against the config.
  * Throws on the first validation error found.
  */
@@ -62,6 +80,14 @@ export function validateCustomTools(config: OmnibaseConfig): void {
     if (BUILT_IN_TOOL_NAMES.has(name)) {
       throw new OmnibaseError(
         `Custom tool '${name}' collides with a built-in tool name`,
+        "INVALID_TOOL_CONFIG",
+      );
+    }
+
+    // Description must be present (either explicit or derived from SQL comments)
+    if (!tool.description) {
+      throw new OmnibaseError(
+        `Custom tool '${name}': missing 'description'. Add a description field or start the SQL with '-- ' comment lines`,
         "INVALID_TOOL_CONFIG",
       );
     }
@@ -249,7 +275,7 @@ export function registerCustomTools(
 
     const handle = server.tool(
       mcpName,
-      tool.description,
+      tool.description ?? "",
       schema.shape,
       async (args: Record<string, unknown>) => {
         try {

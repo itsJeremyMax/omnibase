@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   validateCustomTools,
   extractPlaceholders,
+  extractSqlDescription,
   substituteParameters,
   buildZodSchema,
   registerCustomTools,
@@ -154,6 +155,46 @@ describe("validateCustomTools", () => {
   it("does nothing when tools section is undefined", () => {
     const config = makeConfig(undefined);
     expect(() => validateCustomTools(config)).not.toThrow();
+  });
+
+  it("rejects a tool with no description and no SQL comments", () => {
+    const config = makeConfig({
+      no_desc: {
+        connection: "my-db",
+        sql: "SELECT * FROM users",
+      } as any,
+    });
+    expect(() => validateCustomTools(config)).toThrow("description");
+  });
+});
+
+describe("extractSqlDescription", () => {
+  it("returns undefined when SQL has no leading comments", () => {
+    expect(extractSqlDescription("SELECT * FROM users")).toBeUndefined();
+  });
+
+  it("extracts a single comment line", () => {
+    const sql = "-- Get all users\nSELECT * FROM users";
+    expect(extractSqlDescription(sql)).toBe("Get all users");
+  });
+
+  it("joins multiple comment lines with a space", () => {
+    const sql = "-- Get active users\n-- Returns: id, name\nSELECT * FROM users";
+    expect(extractSqlDescription(sql)).toBe("Get active users Returns: id, name");
+  });
+
+  it("stops at the first non-comment, non-blank line", () => {
+    const sql = "-- First\nSELECT 1\n-- Not extracted";
+    expect(extractSqlDescription(sql)).toBe("First");
+  });
+
+  it("skips leading blank lines before comments", () => {
+    const sql = "\n-- Comment after blank\nSELECT 1";
+    expect(extractSqlDescription(sql)).toBe("Comment after blank");
+  });
+
+  it("returns undefined for lines starting with -- but no space", () => {
+    expect(extractSqlDescription("--no space\nSELECT 1")).toBeUndefined();
   });
 });
 

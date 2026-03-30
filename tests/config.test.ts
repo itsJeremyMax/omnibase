@@ -231,6 +231,40 @@ connections:
     const config = parseConfig(yaml);
     expect(config.tools).toBeUndefined();
   });
+
+  it("derives description from SQL comments when description is omitted", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+tools:
+  get_users:
+    connection: my-db
+    sql: |
+      -- Get all active users
+      -- Returns id and name
+      SELECT * FROM users WHERE active = true
+`;
+    const config = parseConfig(yaml);
+    expect(config.tools!.get_users.description).toBe("Get all active users Returns id and name");
+  });
+
+  it("prefers explicit description over SQL comments", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+tools:
+  get_users:
+    connection: my-db
+    description: "Explicit description"
+    sql: |
+      -- SQL comment description
+      SELECT * FROM users
+`;
+    const config = parseConfig(yaml);
+    expect(config.tools!.get_users.description).toBe("Explicit description");
+  });
 });
 
 describe("resolveConfigPath", () => {

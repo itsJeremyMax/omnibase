@@ -178,7 +178,7 @@ export interface CustomToolParameter {
 
 export interface CustomToolConfig {
   connection: string;
-  description: string;
+  description?: string;
   sql: string;
   permission?: PermissionLevel;
   maxRows?: number;

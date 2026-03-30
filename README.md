@@ -143,6 +143,8 @@ tools:
 
 Custom tools are registered as `custom_<name>` (e.g., `custom_get_active_users`). Parameters use `{param_name}` placeholders that are substituted as parameterized queries (not string interpolation) to prevent SQL injection.
 
+**Auto-generated descriptions:** If you omit the `description` field, it will be derived from leading `-- ` comment lines in your SQL template.
+
 **Parameter types:** `string`, `number`, `boolean`, `enum`
 
 **Optional overrides per tool:** `permission`, `max_rows`, `timeout` (fall back to connection/default values)
