@@ -58,7 +58,7 @@ connections:
 
 DSNs starting with `$` resolve from environment variables (e.g. `dsn: $DATABASE_URL`).
 
-That's it. Your agent now has access to 13 database tools.
+That's it. Your agent now has access to 13 database tools, plus any [custom tools](#custom-tools) you define.
 
 <details>
 <summary>Install from source (contributors)</summary>
@@ -108,6 +108,55 @@ Then point your MCP client at `node dist/src/index.js` with `cwd` set to your pr
 | Tool | What it does |
 |------|-------------|
 | `validate_query` | Check syntax, schema references, permissions, and estimate affected rows before executing |
+
+### Custom Tools
+
+Define your own MCP tools as SQL templates in your config. Custom tools are registered alongside built-in tools and go through the same security pipeline.
+
+```yaml
+tools:
+  get_active_users:
+    connection: my-db
+    description: "Get all active users"
+    sql: "SELECT * FROM users WHERE active = true"
+    max_rows: 100
+
+  find_orders_by_status:
+    connection: my-db
+    description: "Find orders filtered by status"
+    permission: read-write
+    parameters:
+      status:
+        type: enum
+        description: "Order status"
+        values: [pending, shipped, delivered, cancelled]
+      min_amount:
+        type: number
+        description: "Minimum order amount"
+        required: false
+        default: 0
+    sql: >
+      SELECT * FROM orders
+      WHERE status = {status}
+        AND total >= {min_amount}
+```
+
+Custom tools are registered as `custom_<name>` (e.g., `custom_get_active_users`). Parameters use `{param_name}` placeholders that are substituted as parameterized queries (not string interpolation) to prevent SQL injection.
+
+**Parameter types:** `string`, `number`, `boolean`, `enum`
+
+**Optional overrides per tool:** `permission`, `max_rows`, `timeout` (fall back to connection/default values)
+
+**Hot reload:** The server watches your config file and reloads custom tools automatically when it changes. No restart needed.
+
+**CLI management:**
+
+```bash
+npx omnibase-mcp tools list       # list all custom tools
+npx omnibase-mcp tools add        # interactive wizard to add a tool
+npx omnibase-mcp tools remove     # interactive wizard to remove a tool
+npx omnibase-mcp tools validate   # validate custom tool definitions
+```
 
 ## What Makes This Different
 

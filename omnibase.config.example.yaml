@@ -22,3 +22,32 @@ connections:
 #   permission: read-only
 #   timeout: 30000
 #   max_rows: 500
+
+# Custom tools - SQL templates exposed as MCP tools
+# tools:
+#   get_active_users:
+#     connection: my-db
+#     description: "Get all active users"
+#     sql: "SELECT * FROM users WHERE active = true"
+#     max_rows: 100
+#
+#   find_orders_by_status:
+#     connection: my-db
+#     description: "Find orders filtered by status"
+#     permission: read-write     # optional: override connection permission
+#     timeout: 15000             # optional: override timeout (ms)
+#     max_rows: 1000             # optional: override max rows
+#     parameters:
+#       status:
+#         type: enum
+#         description: "Order status to filter by"
+#         values: [pending, shipped, delivered, cancelled]
+#       min_amount:
+#         type: number
+#         description: "Minimum order amount"
+#         required: false
+#         default: 0
+#     sql: >
+#       SELECT * FROM orders
+#       WHERE status = {status}
+#         AND total >= {min_amount}

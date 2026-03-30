@@ -24,6 +24,8 @@ import { handleGetTableStats } from "./tools/get-table-stats.js";
 import { handleGetDistinctValues } from "./tools/get-distinct-values.js";
 import { handleTestConnection } from "./tools/test-connection.js";
 import { OmnibaseError } from "./types.js";
+import { validateCustomTools, registerCustomTools, reloadCustomTools } from "./custom-tools.js";
+import { ConfigWatcher } from "./config-watcher.js";
 
 const STARTER_CONFIG = `# Omnibase configuration
 # All options: https://github.com/itsJeremyMax/omnibase#configuration-reference
@@ -48,9 +50,35 @@ function handleInit(): void {
   process.exit(0);
 }
 
-// Handle CLI commands
-if (process.argv[2] === "init") {
+// Handle CLI commands — must prevent main() from running
+const cliCommand = process.argv[2];
+if (cliCommand === "init") {
   handleInit();
+} else if (cliCommand === "tools") {
+  handleToolsCommand();
+}
+
+async function handleToolsCommand(): Promise<never> {
+  const { tools } = await import("./cli/tools.js");
+  const subcommand = process.argv[3];
+  if (subcommand === "list") {
+    await tools.list();
+  } else if (subcommand === "add") {
+    await tools.add();
+  } else if (subcommand === "remove") {
+    await tools.remove();
+  } else if (subcommand === "validate") {
+    await tools.validate();
+  } else {
+    console.error("Usage: omnibase-mcp tools <list|add|remove|validate>");
+    console.error("");
+    console.error("Commands:");
+    console.error("  list      List all custom tools");
+    console.error("  add       Add a new custom tool");
+    console.error("  remove    Remove a custom tool");
+    console.error("  validate  Validate custom tool definitions");
+  }
+  process.exit(0);
 }
 
 async function main() {
@@ -81,6 +109,9 @@ async function main() {
     return;
   }
   const config = loadConfig(configPath);
+
+  // Validate custom tools
+  validateCustomTools(config);
 
   // Start sidecar
   const sidecarPath =
@@ -340,9 +371,29 @@ async function main() {
     },
   );
 
+  // Register custom tools and track handles for hot reload
+  let customToolHandles = registerCustomTools(server, config, cm);
+  let activeConfig = config;
+
+  // Watch config for changes and reload custom tools
+  const configWatcher = new ConfigWatcher(
+    configPath,
+    (newConfig) => {
+      console.error("omnibase: config changed, reloading custom tools...");
+      activeConfig = newConfig;
+      customToolHandles = reloadCustomTools(server, newConfig, cm, customToolHandles);
+      console.error("omnibase: custom tools reloaded successfully");
+    },
+    (error) => {
+      console.error(`omnibase: config reload failed, keeping current config: ${error.message}`);
+    },
+  );
+  configWatcher.start();
+
   // Graceful shutdown
   process.on("SIGINT", async () => {
-    await cm.disconnectAll(Object.values(config.connections));
+    configWatcher.stop();
+    await cm.disconnectAll(Object.values(activeConfig.connections));
     await sidecar.stop();
     process.exit(0);
   });
@@ -366,7 +417,9 @@ function errorResponse(err: unknown) {
   };
 }
 
-main().catch((err) => {
-  console.error("Failed to start omnibase:", err);
-  process.exit(1);
-});
+if (!cliCommand) {
+  main().catch((err) => {
+    console.error("Failed to start omnibase:", err);
+    process.exit(1);
+  });
+}

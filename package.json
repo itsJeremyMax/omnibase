@@ -49,8 +49,11 @@
   ],
   "author": "Jeremy Max",
   "dependencies": {
+    "@clack/prompts": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.28.0",
+    "cli-table3": "^0.6.5",
     "node-sql-parser": "^5.4.0",
+    "picocolors": "^1.1.1",
     "yaml": "^2.8.3",
     "zod": "^4.3.6"
   },

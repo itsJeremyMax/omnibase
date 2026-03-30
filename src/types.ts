@@ -26,6 +26,7 @@ export interface OmnibaseConfig {
     timeout: number;
     maxRows: number;
   };
+  tools?: Record<string, CustomToolConfig>;
 }
 
 // --- Connection state ---
@@ -161,6 +162,28 @@ export interface DatabaseBackend {
   validateQuery(id: string, query: string): Promise<{ valid: boolean; error?: string }>;
   ping(id: string): Promise<void>;
   disconnect(id: string): Promise<void>;
+}
+
+// --- Custom tool types ---
+
+export type CustomToolParameterType = "string" | "number" | "boolean" | "enum";
+
+export interface CustomToolParameter {
+  type: CustomToolParameterType;
+  description: string;
+  required?: boolean; // defaults to true
+  default?: unknown;
+  values?: string[]; // required if type is "enum"
+}
+
+export interface CustomToolConfig {
+  connection: string;
+  description: string;
+  sql: string;
+  permission?: PermissionLevel;
+  maxRows?: number;
+  timeout?: number;
+  parameters?: Record<string, CustomToolParameter>;
 }
 
 // --- Error types ---

@@ -1,7 +1,14 @@
 import { parse as parseYaml } from "yaml";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
-import { OmnibaseConfig, ConnectionConfig, PermissionLevel, OmnibaseError } from "./types.js";
+import {
+  OmnibaseConfig,
+  ConnectionConfig,
+  PermissionLevel,
+  OmnibaseError,
+  CustomToolConfig,
+  CustomToolParameterType,
+} from "./types.js";
 
 const VALID_PERMISSIONS: PermissionLevel[] = ["read-only", "read-write", "admin"];
 
@@ -27,6 +34,27 @@ interface RawConfig {
     timeout?: number;
     max_rows?: number;
   };
+  tools?: Record<
+    string,
+    {
+      connection?: string;
+      description?: string;
+      sql?: string;
+      permission?: string;
+      max_rows?: number;
+      timeout?: number;
+      parameters?: Record<
+        string,
+        {
+          type?: string;
+          description?: string;
+          required?: boolean;
+          default?: unknown;
+          values?: string[];
+        }
+      >;
+    }
+  >;
 }
 
 const DEFAULT_PERMISSION: PermissionLevel = "read-only";
@@ -74,7 +102,45 @@ export function parseConfig(yamlContent: string): OmnibaseConfig {
     };
   }
 
-  return { connections, defaults };
+  // Parse custom tools
+  let tools: Record<string, CustomToolConfig> | undefined;
+  if (raw.tools && Object.keys(raw.tools).length > 0) {
+    tools = {};
+    for (const [name, rawTool] of Object.entries(raw.tools)) {
+      const tool: CustomToolConfig = {
+        connection: rawTool.connection!,
+        description: rawTool.description!,
+        sql: rawTool.sql!,
+      };
+
+      if (rawTool.permission) {
+        tool.permission = validatePermission(rawTool.permission);
+      }
+      if (rawTool.max_rows != null) {
+        tool.maxRows = rawTool.max_rows;
+      }
+      if (rawTool.timeout != null) {
+        tool.timeout = rawTool.timeout;
+      }
+
+      if (rawTool.parameters) {
+        tool.parameters = {};
+        for (const [paramName, rawParam] of Object.entries(rawTool.parameters)) {
+          tool.parameters[paramName] = {
+            type: rawParam.type as CustomToolParameterType,
+            description: rawParam.description!,
+            required: rawParam.required ?? true,
+            ...(rawParam.default !== undefined ? { default: rawParam.default } : {}),
+            ...(rawParam.values ? { values: rawParam.values } : {}),
+          };
+        }
+      }
+
+      tools[name] = tool;
+    }
+  }
+
+  return { connections, defaults, tools };
 }
 
 export function getConnection(config: OmnibaseConfig, name: string): ConnectionConfig {

@@ -140,6 +140,99 @@ defaults:
   });
 });
 
+describe("parseConfig tools section", () => {
+  it("parses tools with all fields", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+tools:
+  find_orders:
+    connection: my-db
+    description: "Find orders by status"
+    permission: read-write
+    max_rows: 1000
+    timeout: 15000
+    sql: "SELECT * FROM orders WHERE status = {status}"
+    parameters:
+      status:
+        type: enum
+        description: "Order status"
+        values: [pending, shipped]
+`;
+    const config = parseConfig(yaml);
+    expect(config.tools).toBeDefined();
+    expect(config.tools!.find_orders).toEqual({
+      connection: "my-db",
+      description: "Find orders by status",
+      permission: "read-write",
+      maxRows: 1000,
+      timeout: 15000,
+      sql: "SELECT * FROM orders WHERE status = {status}",
+      parameters: {
+        status: {
+          type: "enum",
+          description: "Order status",
+          required: true,
+          values: ["pending", "shipped"],
+        },
+      },
+    });
+  });
+
+  it("parses tools with minimal fields", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+tools:
+  get_users:
+    connection: my-db
+    description: "Get all users"
+    sql: "SELECT * FROM users"
+`;
+    const config = parseConfig(yaml);
+    expect(config.tools!.get_users).toEqual({
+      connection: "my-db",
+      description: "Get all users",
+      sql: "SELECT * FROM users",
+    });
+  });
+
+  it("parses optional parameters with defaults", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+tools:
+  find_orders:
+    connection: my-db
+    description: "Find orders"
+    sql: "SELECT * FROM orders WHERE total >= {min_amount}"
+    parameters:
+      min_amount:
+        type: number
+        description: "Minimum amount"
+        required: false
+        default: 0
+`;
+    const config = parseConfig(yaml);
+    const param = config.tools!.find_orders.parameters!.min_amount;
+    expect(param.required).toBe(false);
+    expect(param.default).toBe(0);
+  });
+
+  it("returns undefined tools when section is omitted", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+`;
+    const config = parseConfig(yaml);
+    expect(config.tools).toBeUndefined();
+  });
+});
+
 describe("resolveConfigPath", () => {
   const tempDir = join(tmpdir(), "omnibase-test-" + Date.now());
 
