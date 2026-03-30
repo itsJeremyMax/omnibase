@@ -32,7 +32,6 @@ const tgzFilename = packInfo[0].filename;
 const tgzPath = path.join(process.cwd(), tgzFilename);
 
 const pkgJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
-const readme = fs.existsSync("README.md") ? fs.readFileSync("README.md", "utf8") : "";
 const tgzData = fs.readFileSync(tgzPath);
 const shasum = crypto.createHash("sha1").update(tgzData).digest("hex");
 const integrity = "sha512-" + crypto.createHash("sha512").update(tgzData).digest("base64");
@@ -41,13 +40,10 @@ const body = JSON.stringify({
   _id: pkgJson.name,
   name: pkgJson.name,
   description: pkgJson.description,
-  readme,
   "dist-tags": { latest: pkgJson.version },
   versions: {
     [pkgJson.version]: {
       ...pkgJson,
-      readme,
-      readmeFilename: "README.md",
       _id: `${pkgJson.name}@${pkgJson.version}`,
       dist: {
         shasum,
