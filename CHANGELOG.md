@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.24](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.23...omnibase-mcp-v0.1.24) (2026-03-30)
+
+
+### Bug Fixes
+
+* revert readme from publish payload to avoid Cloudflare WAF block ([014f1f9](https://github.com/itsJeremyMax/omnibase/commit/014f1f9d401e2e62ec622a3417d5f3674fcbd9b5))
+
 ## [0.1.23](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.22...omnibase-mcp-v0.1.23) (2026-03-30)
 
 
