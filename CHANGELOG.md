@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.23](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.22...omnibase-mcp-v0.1.23) (2026-03-30)
+
+
+### Bug Fixes
+
+* include README in npm registry publish payload ([7f8d3ec](https://github.com/itsJeremyMax/omnibase/commit/7f8d3ec54acf3eca55fdabc55acac3db5a4f1e6a))
+* make defaults section optional in config ([a05cf4a](https://github.com/itsJeremyMax/omnibase/commit/a05cf4ab935ad382fa2ccd5538234553e8a7ce2d))
+
 ## [0.1.22](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.21...omnibase-mcp-v0.1.22) (2026-03-30)
 
 
