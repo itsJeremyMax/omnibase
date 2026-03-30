@@ -72,6 +72,69 @@ function runPostinstall() {
   });
 }
 
+const { getExpectedChecksum, verifyChecksum } = require("../scripts/postinstall");
+
+describe("checksum helpers", () => {
+  it("parses checksum for matching asset from checksums text", () => {
+    const checksumsText = [
+      "abc123def456  omnibase-sidecar-darwin-arm64",
+      "789xyz000111  omnibase-sidecar-darwin-arm64.tar.gz",
+      "222333444555  omnibase-sidecar-linux-amd64",
+    ].join("\n");
+
+    expect(getExpectedChecksum(checksumsText, "omnibase-sidecar-darwin-arm64")).toBe(
+      "abc123def456",
+    );
+  });
+
+  it("returns null when asset is not in checksums text", () => {
+    const checksumsText = "abc123  omnibase-sidecar-linux-amd64\n";
+    expect(getExpectedChecksum(checksumsText, "omnibase-sidecar-darwin-arm64")).toBeNull();
+  });
+
+  it("does not match partial asset names", () => {
+    const checksumsText = "abc123  omnibase-sidecar-darwin-arm64.tar.gz\n";
+    expect(getExpectedChecksum(checksumsText, "omnibase-sidecar-darwin-arm64")).toBeNull();
+  });
+
+  it("verifies checksum of a file with matching hash", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const os = require("os");
+
+    const tmpFile = path.join(os.tmpdir(), `checksum-test-${Date.now()}`);
+    fs.writeFileSync(tmpFile, "hello world");
+
+    // Known SHA-256 of "hello world"
+    const expected = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9";
+    const result = verifyChecksum(tmpFile, expected);
+    fs.unlinkSync(tmpFile);
+
+    expect(result.match).toBe(true);
+    expect(result.actualHash).toBe(expected);
+  });
+
+  it("rejects checksum of a file with wrong hash", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const os = require("os");
+
+    const tmpFile = path.join(os.tmpdir(), `checksum-test-${Date.now()}`);
+    fs.writeFileSync(tmpFile, "hello world");
+
+    const result = verifyChecksum(
+      tmpFile,
+      "0000000000000000000000000000000000000000000000000000000000000000",
+    );
+    fs.unlinkSync(tmpFile);
+
+    expect(result.match).toBe(false);
+    expect(result.actualHash).toBe(
+      "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+    );
+  });
+});
+
 describe("postinstall script", () => {
   it("runs without crashing", () => {
     const result = runPostinstall();
@@ -200,6 +263,18 @@ describe("postinstall script", () => {
       // Fake version guarantees 404
       runPostinstallWithFakeVersion("99.99.99");
       expect(existsSync(VERSION_FILE)).toBe(false);
+    });
+
+    it("soft-fails when download 404s before reaching checksum verification", () => {
+      const binaryPath = getBinaryPath();
+      if (existsSync(binaryPath)) unlinkSync(binaryPath);
+      if (existsSync(VERSION_FILE)) unlinkSync(VERSION_FILE);
+
+      // Fake version guarantees 404 on binary download, so checksum
+      // verification is never reached. Falls through to Go build
+      // (which also fails with restricted PATH), then soft-fails.
+      const result = runPostinstallWithFakeVersion("99.99.99");
+      expect(result).toMatch(/not found|Download failed/);
     });
   });
 });

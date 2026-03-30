@@ -18,6 +18,7 @@ const { join } = require("path");
 const os = require("os");
 const https = require("https");
 const http = require("http");
+const crypto = require("crypto");
 
 const REPO = "itsJeremyMax/omnibase";
 const BINARY_NAME = "omnibase-sidecar";
@@ -96,6 +97,41 @@ function download(url, dest) {
   });
 }
 
+function downloadToString(url) {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith("https") ? https : http;
+    client
+      .get(url, { headers: { "User-Agent": "omnibase-postinstall" } }, (res) => {
+        if (res.statusCode === 301 || res.statusCode === 302) {
+          return downloadToString(res.headers.location).then(resolve).catch(reject);
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`Download failed: HTTP ${res.statusCode}`));
+          return;
+        }
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => resolve(data));
+      })
+      .on("error", reject);
+  });
+}
+
+function getExpectedChecksum(checksumsText, assetName) {
+  const lines = checksumsText.trim().split("\n");
+  const match = lines.find((line) => {
+    const parts = line.split(/\s+/);
+    return parts[1] === assetName;
+  });
+  return match ? match.split(/\s+/)[0] : null;
+}
+
+function verifyChecksum(filePath, expectedHash) {
+  const content = readFileSync(filePath);
+  const actualHash = crypto.createHash("sha256").update(content).digest("hex");
+  return { match: actualHash === expectedHash, actualHash };
+}
+
 async function main() {
   const binaryPath = getLocalBinaryPath();
   const installedVersion = getInstalledVersion();
@@ -128,15 +164,63 @@ async function main() {
     const url = `https://github.com/${REPO}/releases/download/omnibase-mcp-v${VERSION}/${assetName}`;
     console.log(`Downloading omnibase-sidecar ${VERSION} for ${platformKey}...`);
 
+    let downloaded = false;
     try {
       await download(url, binaryPath);
+      downloaded = true;
+    } catch (err) {
+      console.log(`Download failed: ${err.message}`);
+      // Fall through to Go build
+    }
+
+    // Checksum verification is mandatory for downloaded binaries.
+    // This is intentionally outside the download try/catch so that
+    // verification failures cannot accidentally fall through to the
+    // Go build fallback.
+    if (downloaded) {
+      const checksumsUrl = `https://github.com/${REPO}/releases/download/omnibase-mcp-v${VERSION}/checksums-sha256.txt`;
+      let checksumsText;
+      try {
+        checksumsText = await downloadToString(checksumsUrl);
+      } catch (err) {
+        unlinkSync(binaryPath);
+        console.error(
+          `Failed to download checksums file: ${err.message}\n` +
+            `The downloaded binary has been deleted.\n` +
+            `Please retry or download manually from: https://github.com/${REPO}/releases`,
+        );
+        process.exit(1);
+      }
+
+      const expectedHash = getExpectedChecksum(checksumsText, assetName);
+      if (!expectedHash) {
+        unlinkSync(binaryPath);
+        console.error(
+          `No checksum found for ${assetName} in checksums-sha256.txt.\n` +
+            `The downloaded binary has been deleted.\n` +
+            `Please retry or download manually from: https://github.com/${REPO}/releases`,
+        );
+        process.exit(1);
+      }
+
+      const { match, actualHash } = verifyChecksum(binaryPath, expectedHash);
+      if (!match) {
+        unlinkSync(binaryPath);
+        console.error(
+          `Checksum verification failed for ${assetName}.\n` +
+            `Expected: ${expectedHash}\n` +
+            `Actual:   ${actualHash}\n` +
+            `The downloaded binary has been deleted. This may indicate tampering or a corrupted download.\n` +
+            `Please retry or download manually from: https://github.com/${REPO}/releases`,
+        );
+        process.exit(1);
+      }
+
+      console.log("Checksum verified.");
       chmodSync(binaryPath, 0o755);
       writeInstalledVersion();
       console.log("omnibase-sidecar downloaded successfully.");
       return;
-    } catch (err) {
-      console.log(`Download failed: ${err.message}`);
-      // Fall through to Go build
     }
   }
 
@@ -168,3 +252,5 @@ main().catch((err) => {
   console.error("postinstall error:", err.message);
   // Don't fail the install — the user can build manually
 });
+
+module.exports = { getExpectedChecksum, verifyChecksum };

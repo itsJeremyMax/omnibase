@@ -83,7 +83,17 @@ jobs:
             go build -o omnibase-sidecar-${{ matrix.suffix }} .
           fi
 
-      - name: Upload release asset
+      - name: Create archive
+        shell: bash
+        run: |
+          cd sidecar
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            7z a omnibase-sidecar-${{ matrix.suffix }}.zip omnibase-sidecar-${{ matrix.suffix }}.exe
+          else
+            tar -czf omnibase-sidecar-${{ matrix.suffix }}.tar.gz omnibase-sidecar-${{ matrix.suffix }}
+          fi
+
+      - name: Upload release assets
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -91,14 +101,47 @@ jobs:
           cd sidecar
           if [ "${{ matrix.goos }}" = "windows" ]; then
             gh release upload ${{ needs.release-please.outputs.tag_name }} \
-              omnibase-sidecar-${{ matrix.suffix }}.exe
+              omnibase-sidecar-${{ matrix.suffix }}.exe \
+              omnibase-sidecar-${{ matrix.suffix }}.zip
           else
             gh release upload ${{ needs.release-please.outputs.tag_name }} \
-              omnibase-sidecar-${{ matrix.suffix }}
+              omnibase-sidecar-${{ matrix.suffix }} \
+              omnibase-sidecar-${{ matrix.suffix }}.tar.gz
           fi
 
-  publish-npm:
+  upload-checksums:
     needs: [release-please, build-sidecar]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download ${{ needs.release-please.outputs.tag_name }} \
+            --repo itsJeremyMax/omnibase \
+            --pattern 'omnibase-sidecar-*' \
+            --dir assets
+
+      - name: Generate checksums
+        run: |
+          cd assets
+          sha256sum omnibase-sidecar-* | sort -k2 > checksums-sha256.txt
+          echo "Generated checksums:"
+          cat checksums-sha256.txt
+
+      - name: Upload checksums
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ needs.release-please.outputs.tag_name }} \
+            --repo itsJeremyMax/omnibase \
+            assets/checksums-sha256.txt
+
+  publish-npm:
+    needs: [release-please, upload-checksums]
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
     permissions:
