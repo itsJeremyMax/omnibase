@@ -69,14 +69,17 @@ async function handleToolsCommand(): Promise<never> {
     await tools.remove();
   } else if (subcommand === "validate") {
     await tools.validate();
+  } else if (subcommand === "test") {
+    await tools.test();
   } else {
-    console.error("Usage: omnibase-mcp tools <list|add|remove|validate>");
+    console.error("Usage: omnibase-mcp tools <list|add|remove|validate|test>");
     console.error("");
     console.error("Commands:");
     console.error("  list      List all custom tools");
     console.error("  add       Add a new custom tool");
     console.error("  remove    Remove a custom tool");
     console.error("  validate  Validate custom tool definitions");
+    console.error("  test      Dry-run a custom tool with sample arguments");
   }
   process.exit(0);
 }

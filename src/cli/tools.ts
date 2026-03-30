@@ -2,8 +2,12 @@ import pc from "picocolors";
 import Table from "cli-table3";
 import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
 import { readFileSync, writeFileSync } from "fs";
-import { resolveConfigPath, loadConfig } from "../config.js";
-import { extractPlaceholders, validateCustomTools } from "../custom-tools.js";
+import { resolve } from "path";
+import { resolveConfigPath, loadConfig, getConnection } from "../config.js";
+import { extractPlaceholders, validateCustomTools, substituteParameters } from "../custom-tools.js";
+import { SidecarClient } from "../sidecar-client.js";
+import { ConnectionManager } from "../connection-manager.js";
+import type { QueryResult } from "../types.js";
 
 function getConfigPath(): string {
   const configPath = resolveConfigPath(process.cwd());
@@ -371,4 +375,210 @@ async function validate(): Promise<void> {
   }
 }
 
-export const tools = { list, add, remove, validate };
+function parseFlagsFromArgv(): Record<string, string> {
+  const flags: Record<string, string> = {};
+  for (const arg of process.argv.slice(5)) {
+    if (arg.startsWith("--") && arg.includes("=")) {
+      const eq = arg.indexOf("=");
+      flags[arg.slice(2, eq)] = arg.slice(eq + 1);
+    }
+  }
+  return flags;
+}
+
+function formatResultTable(result: QueryResult): string {
+  if (result.columns.length === 0) return pc.dim("(no columns returned)");
+  const table = new Table({
+    head: result.columns.map((c) => pc.bold(c)),
+    wordWrap: true,
+  });
+  for (const row of result.rows) {
+    table.push(
+      row.map((cell) => {
+        if (cell === null || cell === undefined) return pc.dim("NULL");
+        const s = String(cell);
+        return s.length > 120 ? s.slice(0, 120) + pc.dim("...") : s;
+      }),
+    );
+  }
+  return table.toString();
+}
+
+async function test(): Promise<void> {
+  const p = await import("@clack/prompts");
+  const configPath = getConfigPath();
+  const config = loadConfig(configPath);
+
+  try {
+    validateCustomTools(config);
+  } catch (err) {
+    console.error(
+      pc.red(`Config validation failed: ${err instanceof Error ? err.message : String(err)}`),
+    );
+    process.exit(1);
+  }
+
+  if (!config.tools || Object.keys(config.tools).length === 0) {
+    console.log(pc.dim("No custom tools defined."));
+    process.exit(0);
+  }
+
+  let toolName = process.argv[4] as string | undefined;
+
+  if (!toolName) {
+    p.intro(pc.bold("Test Custom Tool"));
+    const selected = await p.select({
+      message: "Which tool to test?",
+      options: Object.entries(config.tools).map(([name, tool]) => ({
+        value: name,
+        label: `custom_${name}`,
+        hint: tool.description,
+      })),
+    });
+    if (p.isCancel(selected)) {
+      p.cancel("Cancelled.");
+      process.exit(0);
+    }
+    toolName = selected as string;
+  } else {
+    p.intro(pc.bold(`Test: custom_${toolName.replace(/^custom_/, "")}`));
+  }
+
+  if (toolName.startsWith("custom_")) toolName = toolName.slice(7);
+
+  const tool = config.tools[toolName];
+  if (!tool) {
+    console.error(
+      pc.red(
+        `Tool "${toolName}" not found. Run \`npx omnibase-mcp tools list\` to see available tools.`,
+      ),
+    );
+    process.exit(1);
+  }
+
+  const paramDefs = tool.parameters ?? {};
+  const paramNames = Object.keys(paramDefs);
+  const cliFlags = parseFlagsFromArgv();
+  const args: Record<string, unknown> = {};
+
+  for (const paramName of paramNames) {
+    const def = paramDefs[paramName];
+    if (cliFlags[paramName] !== undefined) {
+      args[paramName] = cliFlags[paramName];
+    } else if (def.required === false && def.default !== undefined) {
+      const override = await p.text({
+        message: `${paramName} (optional, default: ${String(def.default)})`,
+        placeholder: String(def.default),
+      });
+      if (p.isCancel(override)) {
+        p.cancel("Cancelled.");
+        process.exit(0);
+      }
+      args[paramName] = (override as string).trim() || def.default;
+    } else if (def.type === "enum" && def.values) {
+      const selected = await p.select({
+        message: `${paramName} — ${def.description}`,
+        options: def.values.map((v) => ({ value: v, label: v })),
+      });
+      if (p.isCancel(selected)) {
+        p.cancel("Cancelled.");
+        process.exit(0);
+      }
+      args[paramName] = selected;
+    } else if (def.type === "boolean") {
+      const val = await p.confirm({
+        message: `${paramName} — ${def.description}`,
+        initialValue: true,
+      });
+      if (p.isCancel(val)) {
+        p.cancel("Cancelled.");
+        process.exit(0);
+      }
+      args[paramName] = val;
+    } else {
+      const val = await p.text({
+        message: `${paramName} — ${def.description}`,
+        validate: (v) => {
+          if (!v || !v.trim()) return "Value is required";
+        },
+      });
+      if (p.isCancel(val)) {
+        p.cancel("Cancelled.");
+        process.exit(0);
+      }
+      args[paramName] = val;
+    }
+  }
+
+  let substituted: { sql: string; values: unknown[] };
+  try {
+    substituted = substituteParameters(tool.sql, args, paramDefs);
+  } catch (err) {
+    console.error(pc.red(`Parameter error: ${err instanceof Error ? err.message : String(err)}`));
+    process.exit(1);
+  }
+
+  p.log.info(`Connection: ${pc.cyan(tool.connection)}`);
+  p.log.info(`SQL template:\n${pc.dim(tool.sql.trim())}`);
+  if (substituted.values.length > 0) {
+    p.log.info(
+      `Parameters: ${substituted.values.map((v, i) => `$${i + 1} = ${pc.cyan(String(v))}`).join(", ")}`,
+    );
+  }
+
+  const sidecarPath =
+    process.env.OMNIBASE_SIDECAR_PATH ||
+    resolve(__dirname, "..", "..", "..", "sidecar", "omnibase-sidecar");
+
+  const sidecar = new SidecarClient(sidecarPath);
+  const spinner = p.spinner();
+  spinner.start("Connecting to database...");
+
+  try {
+    await sidecar.start();
+  } catch (err) {
+    spinner.stop("Failed to start sidecar");
+    console.error(pc.red(`Sidecar error: ${err instanceof Error ? err.message : String(err)}`));
+    process.exit(1);
+  }
+
+  const cm = new ConnectionManager(sidecar);
+  const connConfig = getConnection(config, tool.connection);
+
+  spinner.message("Executing query...");
+
+  let result: QueryResult;
+  const startMs = Date.now();
+
+  try {
+    result = await cm.execute(connConfig, substituted.sql, substituted.values, {
+      maxRows: tool.maxRows ?? connConfig.maxRows,
+      timeoutMs: tool.timeout ?? connConfig.timeout,
+    });
+  } catch (err) {
+    spinner.stop("Query failed");
+    console.error(pc.red(`Query error: ${err instanceof Error ? err.message : String(err)}`));
+    await sidecar.stop();
+    process.exit(1);
+  }
+
+  const elapsedMs = Date.now() - startMs;
+  spinner.stop("Done");
+
+  if (result.rows.length === 0) {
+    console.log(pc.dim("(no rows returned)"));
+  } else {
+    console.log(formatResultTable(result));
+  }
+
+  const rowLabel = result.rowCount === 1 ? "row" : "rows";
+  const truncatedNote = result.hasMore ? pc.yellow(" (truncated)") : "";
+  console.log(
+    `\n${pc.green(String(result.rowCount))} ${rowLabel} · ${pc.dim(`${elapsedMs}ms`)}${truncatedNote}`,
+  );
+
+  await sidecar.stop();
+  p.outro(pc.green("Done."));
+}
+
+export const tools = { list, add, remove, validate, test };
