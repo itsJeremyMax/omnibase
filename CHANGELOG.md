@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.22](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.21...omnibase-mcp-v0.1.22) (2026-03-30)
+
+
+### Features
+
+* add exact_counts parameter to list_tables for accurate row counts ([8dd47d8](https://github.com/itsJeremyMax/omnibase/commit/8dd47d880f9bd5ae75bef60c110654a8da041817))
+
+
+### Bug Fixes
+
+* update integration tests for exact_counts and add CI concurrency ([2a07923](https://github.com/itsJeremyMax/omnibase/commit/2a079236c51521f52c0bd6582b1d6d0de232fe4a))
+
 ## [0.1.21](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.20...omnibase-mcp-v0.1.21) (2026-03-28)
 
 
