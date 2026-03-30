@@ -237,9 +237,9 @@ defaults:
       const result = await handleGetSchema(config, cm, { connection: db.connectionName });
       const usersTable = result.tables.find(
         (t: { name: string }) => t.name.toLowerCase() === "users",
-      ) as { row_count_estimate: number };
+      ) as { row_count: number };
       expect(usersTable).toBeDefined();
-      expect(usersTable.row_count_estimate).toBe(3);
+      expect(usersTable.row_count).toBe(3);
     });
 
     it("get_schema returns columns in definition order", async () => {
@@ -265,7 +265,7 @@ defaults:
       // Should have snake_case keys, not camelCase
       expect(table).toHaveProperty("primary_key");
       expect(table).toHaveProperty("foreign_keys");
-      expect(table).toHaveProperty("row_count_estimate");
+      expect(table).toHaveProperty("row_count");
       expect(table).not.toHaveProperty("primaryKey");
       expect(table).not.toHaveProperty("foreignKeys");
       expect(table).not.toHaveProperty("rowCountEstimate");
