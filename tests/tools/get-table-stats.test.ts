@@ -38,6 +38,7 @@ const mockSchema: SchemaInfo = {
       indexes: [],
       foreignKeys: [],
       rowCountEstimate: 3,
+      exactCount: false,
       comment: null,
     },
   ],

@@ -26,8 +26,9 @@ type RPCParams struct {
 	TimeoutMs   int           `json:"timeout_ms,omitempty"`
 
 	// Schema
-	Schemas []string `json:"schemas,omitempty"`
-	Tables  []string `json:"tables,omitempty"`
+	Schemas     []string `json:"schemas,omitempty"`
+	Tables      []string `json:"tables,omitempty"`
+	ExactCounts *bool    `json:"exact_counts,omitempty"`
 }
 
 // RPCResponse is a JSON-RPC 2.0 response to the MCP server.
@@ -68,6 +69,7 @@ type TableInfo struct {
 	Indexes          []IndexInfo  `json:"indexes"`
 	ForeignKeys      []ForeignKey `json:"foreign_keys"`
 	RowCountEstimate int64        `json:"row_count_estimate"`
+	ExactCount       bool         `json:"exact_count"`
 	Comment          *string      `json:"comment"`
 }
 

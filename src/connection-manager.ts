@@ -40,10 +40,18 @@ export class ConnectionManager {
     });
   }
 
-  async getSchema(config: ConnectionConfig, forceRefresh = false): Promise<SchemaInfo> {
+  async getSchema(
+    config: ConnectionConfig,
+    options?: { forceRefresh?: boolean; exactCounts?: boolean },
+  ): Promise<SchemaInfo> {
     await this.ensureConnected(config);
 
-    if (!forceRefresh && this.schemaCache.has(config.name)) {
+    const forceRefresh = options?.forceRefresh ?? false;
+    const exactCounts = options?.exactCounts;
+
+    // Only use cache when exact_counts is not explicitly requested
+    // (cache may contain estimates or exact counts from a previous call)
+    if (!forceRefresh && exactCounts === undefined && this.schemaCache.has(config.name)) {
       return this.schemaCache.get(config.name)!;
     }
 
@@ -53,8 +61,11 @@ export class ConnectionManager {
         ? {
             schemas: config.schemaFilter.schemas,
             tables: config.schemaFilter.tables,
+            exactCounts,
           }
-        : undefined,
+        : exactCounts !== undefined
+          ? { exactCounts }
+          : undefined,
     );
 
     this.schemaCache.set(config.name, schema);

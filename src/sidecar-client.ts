@@ -127,6 +127,7 @@ export class SidecarClient implements DatabaseBackend {
       id,
       schemas: filter?.schemas ?? null,
       tables: filter?.tables ?? null,
+      exact_counts: filter?.exactCounts ?? null,
     })) as { tables: Record<string, unknown>[] };
 
     // Map snake_case sidecar response to camelCase TypeScript types
@@ -160,6 +161,7 @@ export class SidecarClient implements DatabaseBackend {
           }),
         ),
         rowCountEstimate: (t.row_count_estimate as number) ?? 0,
+        exactCount: (t.exact_count as boolean) ?? false,
         comment: (t.comment as string | null) ?? null,
       })),
     };

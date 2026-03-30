@@ -5,15 +5,18 @@ import { getConnection } from "../config.js";
 export async function handleListTables(
   config: OmnibaseConfig,
   cm: ConnectionManager,
-  args: { connection: string },
+  args: { connection: string; exact_counts?: boolean },
 ) {
   const connConfig = getConnection(config, args.connection);
+  const exactCounts = args.exact_counts ?? true;
 
-  const schema = await cm.getSchema(connConfig);
+  const schema = await cm.getSchema(connConfig, { exactCounts });
 
   return schema.tables.map((t) => ({
     name: t.name,
     schema: t.schema,
-    row_count: t.rowCountEstimate,
+    ...(t.exactCount
+      ? { row_count: t.rowCountEstimate }
+      : { row_count_estimate: t.rowCountEstimate }),
   }));
 }

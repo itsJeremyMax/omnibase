@@ -70,6 +70,7 @@ export interface TableInfo {
   indexes: IndexInfo[];
   foreignKeys: ForeignKeyInfo[];
   rowCountEstimate: number;
+  exactCount: boolean;
   comment: string | null;
 }
 
@@ -79,6 +80,7 @@ export interface TableSummary {
   columnCount: number;
   primaryKey: string[];
   rowCountEstimate: number;
+  exactCount: boolean;
 }
 
 export interface SchemaInfo {
@@ -143,6 +145,7 @@ export interface ExecuteOptions {
 export interface SchemaFilter {
   schemas?: string[];
   tables?: string[];
+  exactCounts?: boolean;
 }
 
 export interface DatabaseBackend {

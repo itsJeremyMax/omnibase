@@ -30,6 +30,7 @@ function createMockBackend(): DatabaseBackend {
           indexes: [],
           foreignKeys: [],
           rowCountEstimate: 100,
+          exactCount: false,
           comment: null,
         },
       ],
@@ -79,7 +80,7 @@ describe("ConnectionManager", () => {
   it("invalidates schema cache on force refresh", async () => {
     await manager.ensureConnected(testConfig);
     await manager.getSchema(testConfig);
-    await manager.getSchema(testConfig, true);
+    await manager.getSchema(testConfig, { forceRefresh: true });
 
     expect(backend.getSchema).toHaveBeenCalledTimes(2);
   });

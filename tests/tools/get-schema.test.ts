@@ -32,6 +32,7 @@ describe("handleGetSchema", () => {
         indexes: [],
         foreignKeys: [],
         rowCountEstimate: 100,
+        exactCount: false,
         comment: null,
       },
       {
@@ -51,6 +52,7 @@ describe("handleGetSchema", () => {
         indexes: [],
         foreignKeys: [],
         rowCountEstimate: 50,
+        exactCount: false,
         comment: null,
       },
     ],

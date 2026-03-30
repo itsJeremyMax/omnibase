@@ -11,7 +11,7 @@ import (
 // GetSchema introspects database schema using usql's metadata reader.
 // Works across all databases that usql supports. Supplements metadata reader
 // output with direct queries for row counts and other data the reader omits.
-func GetSchema(cm *ConnectionManager, id string, schemas []string, tables []string) (*SchemaResult, error) {
+func GetSchema(cm *ConnectionManager, id string, schemas []string, tables []string, exactCounts bool) (*SchemaResult, error) {
 	conn, err := cm.Get(id)
 	if err != nil {
 		return nil, err
@@ -64,6 +64,7 @@ func GetSchema(cm *ConnectionManager, id string, schemas []string, tables []stri
 			Indexes:          []IndexInfo{},
 			ForeignKeys:      []ForeignKey{},
 			RowCountEstimate: t.Rows,
+			ExactCount:       exactCounts,
 			Comment:          nilIfEmpty(t.Comment),
 		}
 
@@ -195,8 +196,8 @@ func GetSchema(cm *ConnectionManager, id string, schemas []string, tables []stri
 			}
 		}
 
-		// Supplement: get row count via COUNT(*) if the metadata reader returned 0
-		if info.RowCountEstimate == 0 {
+		// Get exact row count via COUNT(*) when requested, or as a fallback when the estimate is 0
+		if exactCounts || info.RowCountEstimate == 0 {
 			var count int64
 			err := conn.DB.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", t.Name)).Scan(&count)
 			if err == nil {

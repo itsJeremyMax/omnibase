@@ -105,7 +105,8 @@ func handleExecute(cm *ConnectionManager, req RPCRequest) RPCResponse {
 }
 
 func handleSchema(cm *ConnectionManager, req RPCRequest) RPCResponse {
-	result, err := GetSchema(cm, req.Params.ID, req.Params.Schemas, req.Params.Tables)
+	exactCounts := req.Params.ExactCounts == nil || *req.Params.ExactCounts
+	result, err := GetSchema(cm, req.Params.ID, req.Params.Schemas, req.Params.Tables, exactCounts)
 	if err != nil {
 		return MakeError(req.ID, "SCHEMA_ERROR", err.Error(), "")
 	}

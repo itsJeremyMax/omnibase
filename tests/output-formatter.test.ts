@@ -89,6 +89,7 @@ describe("formatSchemaResult", () => {
     indexes: [],
     foreignKeys: [],
     rowCountEstimate: 1000,
+    exactCount: false,
     comment: null,
   };
 
@@ -127,6 +128,7 @@ describe("formatSearchResults", () => {
       indexes: [],
       foreignKeys: [],
       rowCountEstimate: 0,
+      exactCount: false,
       comment: null,
     }));
 
@@ -153,6 +155,7 @@ describe("formatSearchResults", () => {
         indexes: [],
         foreignKeys: [],
         rowCountEstimate: 0,
+        exactCount: false,
         comment: null,
       },
       {
@@ -172,6 +175,7 @@ describe("formatSearchResults", () => {
         indexes: [],
         foreignKeys: [],
         rowCountEstimate: 0,
+        exactCount: false,
         comment: null,
       },
     ];

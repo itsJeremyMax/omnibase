@@ -65,6 +65,7 @@ const mockSchema = {
       indexes: [],
       foreignKeys: [],
       rowCountEstimate: 10,
+      exactCount: false,
       comment: null,
     },
   ],

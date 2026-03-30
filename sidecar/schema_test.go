@@ -29,7 +29,7 @@ func TestGetSchemaAllTables(t *testing.T) {
 	cm := setupSchemaTestDB(t)
 	defer cm.CloseAll()
 
-	result, err := GetSchema(cm, "test", nil, nil)
+	result, err := GetSchema(cm, "test", nil, nil, true)
 	if err != nil {
 		t.Fatalf("get schema failed: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestGetSchemaFilteredTables(t *testing.T) {
 	cm := setupSchemaTestDB(t)
 	defer cm.CloseAll()
 
-	result, err := GetSchema(cm, "test", nil, []string{"posts"})
+	result, err := GetSchema(cm, "test", nil, []string{"posts"}, true)
 	if err != nil {
 		t.Fatalf("get schema failed: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestGetSchemaColumns(t *testing.T) {
 	cm := setupSchemaTestDB(t)
 	defer cm.CloseAll()
 
-	result, err := GetSchema(cm, "test", nil, []string{"users"})
+	result, err := GetSchema(cm, "test", nil, []string{"users"}, true)
 	if err != nil {
 		t.Fatalf("get schema failed: %v", err)
 	}
@@ -95,9 +95,41 @@ func TestGetSchemaColumns(t *testing.T) {
 	}
 }
 
+func TestGetSchemaExactCounts(t *testing.T) {
+	cm := setupSchemaTestDB(t)
+	defer cm.CloseAll()
+
+	// Insert some rows
+	Execute(cm, "test", `INSERT INTO users (name, email) VALUES ('alice', 'alice@test.com')`, nil, 0, 5000)
+	Execute(cm, "test", `INSERT INTO users (name, email) VALUES ('bob', 'bob@test.com')`, nil, 0, 5000)
+
+	// With exact_counts=true, should get accurate COUNT(*)
+	result, err := GetSchema(cm, "test", nil, []string{"users"}, true)
+	if err != nil {
+		t.Fatalf("get schema failed: %v", err)
+	}
+	table := result.Tables[0]
+	if table.RowCountEstimate != 2 {
+		t.Errorf("expected exact count of 2, got %d", table.RowCountEstimate)
+	}
+	if !table.ExactCount {
+		t.Error("expected ExactCount to be true")
+	}
+
+	// With exact_counts=false, should use catalog estimate and mark as not exact
+	result2, err := GetSchema(cm, "test", nil, []string{"users"}, false)
+	if err != nil {
+		t.Fatalf("get schema failed: %v", err)
+	}
+	table2 := result2.Tables[0]
+	if table2.ExactCount {
+		t.Error("expected ExactCount to be false")
+	}
+}
+
 func TestGetSchemaUnknownConnection(t *testing.T) {
 	cm := NewConnectionManager()
-	_, err := GetSchema(cm, "nonexistent", nil, nil)
+	_, err := GetSchema(cm, "nonexistent", nil, nil, true)
 	if err == nil {
 		t.Error("expected error for unknown connection")
 	}

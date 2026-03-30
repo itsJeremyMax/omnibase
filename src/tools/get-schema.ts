@@ -11,7 +11,7 @@ export async function handleGetSchema(
 ) {
   const connConfig = getConnection(config, args.connection);
 
-  const schema = await cm.getSchema(connConfig, args.force_refresh);
+  const schema = await cm.getSchema(connConfig, { forceRefresh: args.force_refresh });
 
   let filtered = schema;
   const warnings: string[] = [];

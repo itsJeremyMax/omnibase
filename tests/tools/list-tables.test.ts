@@ -22,6 +22,7 @@ const mockSchema: SchemaInfo = {
       indexes: [],
       foreignKeys: [],
       rowCountEstimate: 100,
+      exactCount: true,
       comment: null,
     },
     {
@@ -41,6 +42,7 @@ const mockSchema: SchemaInfo = {
       indexes: [],
       foreignKeys: [],
       rowCountEstimate: 50,
+      exactCount: true,
       comment: null,
     },
   ],
@@ -77,6 +79,35 @@ describe("handleListTables", () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({ name: "users", schema: "main", row_count: 100 });
     expect(result[1]).toEqual({ name: "posts", schema: "main", row_count: 50 });
+  });
+
+  it("returns row_count_estimate when exact_counts is false", async () => {
+    const estimateSchema: SchemaInfo = {
+      tables: mockSchema.tables.map((t) => ({ ...t, exactCount: false })),
+    };
+    const backend = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      execute: vi.fn(),
+      getSchema: vi.fn().mockResolvedValue(estimateSchema),
+      ping: vi.fn(),
+      disconnect: vi.fn(),
+    };
+    const cm = new ConnectionManager(backend);
+    const config: OmnibaseConfig = {
+      connections: {
+        test: {
+          name: "test",
+          dsn: "sqlite::memory:",
+          permission: "read-only",
+          timeout: 5000,
+          maxRows: 100,
+        },
+      },
+      defaults: { permission: "read-only", timeout: 30000, maxRows: 500 },
+    };
+    const result = await handleListTables(config, cm, { connection: "test", exact_counts: false });
+    expect(result[0]).toEqual({ name: "users", schema: "main", row_count_estimate: 100 });
+    expect(result[1]).toEqual({ name: "posts", schema: "main", row_count_estimate: 50 });
   });
 
   it("throws on unknown connection", async () => {

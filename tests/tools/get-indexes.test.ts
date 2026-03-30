@@ -22,6 +22,7 @@ const mockSchema: SchemaInfo = {
       indexes: [{ name: "idx_users_email", columns: ["email"], unique: true }],
       foreignKeys: [],
       rowCountEstimate: 10,
+      exactCount: false,
       comment: null,
     },
     {
@@ -44,6 +45,7 @@ const mockSchema: SchemaInfo = {
       ],
       foreignKeys: [],
       rowCountEstimate: 20,
+      exactCount: false,
       comment: null,
     },
   ],

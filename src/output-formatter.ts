@@ -53,7 +53,9 @@ export function formatSchemaResult(schema: SchemaInfo, detailed: boolean): { tab
           references_table: fk.referencesTable,
           references_column: fk.referencesColumn,
         })),
-        row_count_estimate: t.rowCountEstimate,
+        ...(t.exactCount
+          ? { row_count: t.rowCountEstimate }
+          : { row_count_estimate: t.rowCountEstimate }),
         comment: t.comment,
       })),
     };
@@ -66,7 +68,9 @@ export function formatSchemaResult(schema: SchemaInfo, detailed: boolean): { tab
       schema: t.schema,
       column_count: t.columns.length,
       primary_key: t.primaryKey,
-      row_count_estimate: t.rowCountEstimate,
+      ...(t.exactCount
+        ? { row_count: t.rowCountEstimate }
+        : { row_count_estimate: t.rowCountEstimate }),
     })),
   };
 }

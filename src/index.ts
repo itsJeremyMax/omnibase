@@ -232,13 +232,19 @@ async function main() {
 
   server.tool(
     "list_tables",
-    "List all tables with row counts. Faster than get_schema for a quick overview of what's in the database.",
+    "List all tables with row counts. Faster than get_schema for a quick overview of what's in the database. By default uses exact counts (COUNT(*)); set exact_counts=false for faster approximate counts on large databases.",
     {
       connection: z.string().describe("Connection name from config"),
+      exact_counts: z
+        .boolean()
+        .optional()
+        .describe(
+          "When true (default), returns exact row counts via COUNT(*). When false, returns approximate counts from database statistics (faster but may be stale).",
+        ),
     },
-    async ({ connection }) => {
+    async ({ connection, exact_counts }) => {
       try {
-        const result = await handleListTables(config, cm, { connection });
+        const result = await handleListTables(config, cm, { connection, exact_counts });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
         return errorResponse(err);

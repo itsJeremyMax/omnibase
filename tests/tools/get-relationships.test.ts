@@ -22,6 +22,7 @@ const mockSchema: SchemaInfo = {
       indexes: [],
       foreignKeys: [],
       rowCountEstimate: 10,
+      exactCount: false,
       comment: null,
     },
     {
@@ -49,6 +50,7 @@ const mockSchema: SchemaInfo = {
       indexes: [],
       foreignKeys: [{ column: "user_id", referencesTable: "users", referencesColumn: "id" }],
       rowCountEstimate: 20,
+      exactCount: false,
       comment: null,
     },
     {
@@ -87,6 +89,7 @@ const mockSchema: SchemaInfo = {
         { column: "user_id", referencesTable: "users", referencesColumn: "id" },
       ],
       rowCountEstimate: 50,
+      exactCount: false,
       comment: null,
     },
   ],
