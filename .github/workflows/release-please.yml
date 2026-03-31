@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
@@ -13,153 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@v4
-        id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-
-  build-sidecar:
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            suffix: linux-amd64
-            cc: gcc
-          - os: ubuntu-latest
-            goos: linux
-            goarch: arm64
-            suffix: linux-arm64
-            cc: aarch64-linux-gnu-gcc
-          - os: macos-15-intel
-            goos: darwin
-            goarch: amd64
-            suffix: darwin-amd64
-            cc: ""
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
-            suffix: darwin-arm64
-            cc: ""
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-            suffix: windows-amd64
-            cc: ""
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version: "1.26"
-          cache-dependency-path: sidecar/go.sum
-
-      - name: Install cross-compiler
-        if: matrix.cc == 'aarch64-linux-gnu-gcc'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Build sidecar
-        shell: bash
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: "1"
-          CC: ${{ matrix.cc }}
-        run: |
-          cd sidecar
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            go build -o omnibase-sidecar-${{ matrix.suffix }}.exe .
-          else
-            go build -o omnibase-sidecar-${{ matrix.suffix }} .
-          fi
-
-      - name: Create archive
-        shell: bash
-        run: |
-          cd sidecar
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            7z a omnibase-sidecar-${{ matrix.suffix }}.zip omnibase-sidecar-${{ matrix.suffix }}.exe
-          else
-            tar -czf omnibase-sidecar-${{ matrix.suffix }}.tar.gz omnibase-sidecar-${{ matrix.suffix }}
-          fi
-
-      - name: Upload release assets
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cd sidecar
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            gh release upload ${{ needs.release-please.outputs.tag_name }} \
-              omnibase-sidecar-${{ matrix.suffix }}.exe \
-              omnibase-sidecar-${{ matrix.suffix }}.zip
-          else
-            gh release upload ${{ needs.release-please.outputs.tag_name }} \
-              omnibase-sidecar-${{ matrix.suffix }} \
-              omnibase-sidecar-${{ matrix.suffix }}.tar.gz
-          fi
-
-  upload-checksums:
-    needs: [release-please, build-sidecar]
-    if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download release assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release download ${{ needs.release-please.outputs.tag_name }} \
-            --repo itsJeremyMax/omnibase \
-            --pattern 'omnibase-sidecar-*' \
-            --dir assets
-
-      - name: Generate checksums
-        run: |
-          cd assets
-          sha256sum omnibase-sidecar-* | sort -k2 > checksums-sha256.txt
-          echo "Generated checksums:"
-          cat checksums-sha256.txt
-
-      - name: Upload checksums
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload ${{ needs.release-please.outputs.tag_name }} \
-            --repo itsJeremyMax/omnibase \
-            assets/checksums-sha256.txt
-
-  publish-npm:
-    needs: [release-please, upload-checksums]
-    if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v5
-        with:
-          version: 10
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: pnpm run build
-
-      - name: Publish to npm
-        run: node scripts/publish.js
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
