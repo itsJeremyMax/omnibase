@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.25](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.24...omnibase-mcp-v0.1.25) (2026-03-31)
+
+
+### Features
+
+* add CLI upgrade command with update checking and changelog display ([28daa3e](https://github.com/itsJeremyMax/omnibase/commit/28daa3e1455fdc9a6733debb00d6df9ee3fb7095))
+* add connection health dashboard via `status` command ([b7a1ae7](https://github.com/itsJeremyMax/omnibase/commit/b7a1ae7b9b328ac9ed77c871e3942bd8f2e159a8))
+* add custom tools - user-defined MCP tools via config ([8b357fd](https://github.com/itsJeremyMax/omnibase/commit/8b357fd47557af3361cf196d6ba6aca6c1f29f67))
+* add multi-statement custom tools with transaction support ([3a8c6f0](https://github.com/itsJeremyMax/omnibase/commit/3a8c6f07cd28ca71b39c03b3b0b4107e89af4606))
+* add query audit log with history tool and CLI ([7964058](https://github.com/itsJeremyMax/omnibase/commit/796405858e1344116907dba2d311c5229996c075))
+* add schema-aware autocomplete hints in tool descriptions ([9688273](https://github.com/itsJeremyMax/omnibase/commit/96882731524683fd5cbe04b66d4508d20492f63d))
+* add SHA-256 checksum verification and archives for sidecar releases ([676d074](https://github.com/itsJeremyMax/omnibase/commit/676d0741b2a633a82347dc829c2c811963a0ef6c))
+* add tool composition with compose pipelines ([6a4807b](https://github.com/itsJeremyMax/omnibase/commit/6a4807ba852dbf432b2f31a180104f6dd5d8332c))
+* add tools test command for dry-running custom tools ([492fcd0](https://github.com/itsJeremyMax/omnibase/commit/492fcd0b157dbdcf62fa7fe5aed5ef58341baf7c))
+* auto-generate tool descriptions from SQL comments ([dacd8fe](https://github.com/itsJeremyMax/omnibase/commit/dacd8fec090580ecacc0501f472011d2ca3818d8))
+
 ## [0.1.24](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.23...omnibase-mcp-v0.1.24) (2026-03-30)
 
 
