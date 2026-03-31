@@ -19,6 +19,13 @@ export interface ConnectionConfig {
   readOnlyTables?: string[];
 }
 
+export interface AuditConfig {
+  enabled: boolean;
+  path: string;
+  format: "jsonl" | "text";
+  maxEntries: number; // 0 = unlimited
+}
+
 export interface OmnibaseConfig {
   connections: Record<string, ConnectionConfig>;
   defaults: {
@@ -27,6 +34,7 @@ export interface OmnibaseConfig {
     maxRows: number;
   };
   tools?: Record<string, CustomToolConfig>;
+  audit?: AuditConfig;
 }
 
 // --- Connection state ---

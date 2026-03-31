@@ -1,6 +1,6 @@
 import { parse as parseYaml } from "yaml";
 import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
 import {
   OmnibaseConfig,
   ConnectionConfig,
@@ -8,6 +8,7 @@ import {
   OmnibaseError,
   CustomToolConfig,
   CustomToolParameterType,
+  AuditConfig,
 } from "./types.js";
 import { extractSqlDescription } from "./custom-tools.js";
 
@@ -56,13 +57,19 @@ interface RawConfig {
       >;
     }
   >;
+  audit?: {
+    enabled?: boolean;
+    path?: string;
+    format?: string;
+    max_entries?: number;
+  };
 }
 
 const DEFAULT_PERMISSION: PermissionLevel = "read-only";
 const DEFAULT_TIMEOUT = 30000;
 const DEFAULT_MAX_ROWS = 500;
 
-export function parseConfig(yamlContent: string): OmnibaseConfig {
+export function parseConfig(yamlContent: string, configFilePath?: string): OmnibaseConfig {
   const raw = parseYaml(yamlContent) as RawConfig;
 
   const defaults = {
@@ -142,7 +149,18 @@ export function parseConfig(yamlContent: string): OmnibaseConfig {
     }
   }
 
-  return { connections, defaults, tools };
+  let audit: AuditConfig | undefined;
+  if (raw.audit) {
+    const configDir = configFilePath ? dirname(configFilePath) : process.cwd();
+    audit = {
+      enabled: raw.audit.enabled ?? false,
+      path: raw.audit.path ?? join(configDir, ".omnibase", "audit.log"),
+      format: (raw.audit.format === "text" ? "text" : "jsonl") as "jsonl" | "text",
+      maxEntries: raw.audit.max_entries ?? 10000,
+    };
+  }
+
+  return { connections, defaults, tools, audit };
 }
 
 export function getConnection(config: OmnibaseConfig, name: string): ConnectionConfig {
@@ -158,7 +176,7 @@ export function getConnection(config: OmnibaseConfig, name: string): ConnectionC
 
 export function loadConfig(configPath: string): OmnibaseConfig {
   const content = readFileSync(configPath, "utf-8");
-  return parseConfig(content);
+  return parseConfig(content, configPath);
 }
 
 export function resolveConfigPath(cwd: string): string | null {

@@ -267,6 +267,81 @@ tools:
   });
 });
 
+describe("parseConfig audit section", () => {
+  it("defaults audit log path to .omnibase/audit.log relative to config file", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+audit:
+  enabled: true
+`;
+    const config = parseConfig(yaml, "/projects/myapp/omnibase.config.yaml");
+    expect(config.audit).toBeDefined();
+    expect(config.audit!.enabled).toBe(true);
+    expect(config.audit!.path).toBe(join("/projects/myapp", ".omnibase", "audit.log"));
+  });
+
+  it("defaults audit log path to cwd when no config path provided", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+audit:
+  enabled: true
+`;
+    const config = parseConfig(yaml);
+    expect(config.audit!.path).toContain(".omnibase");
+    expect(config.audit!.path).toContain("audit.log");
+  });
+
+  it("uses explicit path when provided", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+audit:
+  enabled: true
+  path: /custom/path/audit.log
+`;
+    const config = parseConfig(yaml, "/projects/myapp/omnibase.config.yaml");
+    expect(config.audit!.path).toBe("/custom/path/audit.log");
+  });
+
+  it("defaults to disabled when enabled is not set", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+audit: {}
+`;
+    const config = parseConfig(yaml);
+    expect(config.audit!.enabled).toBe(false);
+  });
+
+  it("defaults max_entries to 10000", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+audit:
+  enabled: true
+`;
+    const config = parseConfig(yaml);
+    expect(config.audit!.maxEntries).toBe(10000);
+  });
+
+  it("returns undefined audit when section is omitted", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+`;
+    const config = parseConfig(yaml);
+    expect(config.audit).toBeUndefined();
+  });
+});
+
 describe("resolveConfigPath", () => {
   const tempDir = join(tmpdir(), "omnibase-test-" + Date.now());
 

@@ -12,6 +12,7 @@ import { enforcePermission } from "./permission-enforcer.js";
 import { formatQueryResult } from "./output-formatter.js";
 import type { ConnectionManager } from "./connection-manager.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { AuditLogger } from "./audit-logger.js";
 
 const VALID_PERMISSIONS: PermissionLevel[] = ["read-only", "read-write", "admin"];
 
@@ -265,6 +266,7 @@ export function registerCustomTools(
   server: McpServer,
   config: OmnibaseConfig,
   cm: ConnectionManager,
+  auditLogger?: AuditLogger,
 ): Map<string, { remove: () => void }> {
   const handles = new Map<string, { remove: () => void }>();
   if (!config.tools) return handles;
@@ -279,7 +281,7 @@ export function registerCustomTools(
       schema.shape,
       async (args: Record<string, unknown>) => {
         try {
-          const result = await executeCustomTool(config, cm, name, tool, args);
+          const result = await executeCustomTool(config, cm, name, tool, args, auditLogger);
           return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
         } catch (err) {
           const message =
@@ -311,6 +313,7 @@ export function reloadCustomTools(
   config: OmnibaseConfig,
   cm: ConnectionManager,
   previousHandles: Map<string, { remove: () => void }>,
+  auditLogger?: AuditLogger,
 ): Map<string, { remove: () => void }> {
   // Remove all previously registered custom tools
   for (const [, handle] of previousHandles) {
@@ -318,7 +321,7 @@ export function reloadCustomTools(
   }
 
   // Register new tools from updated config
-  return registerCustomTools(server, config, cm);
+  return registerCustomTools(server, config, cm, auditLogger);
 }
 
 /**
@@ -330,6 +333,7 @@ async function executeCustomTool(
   _toolName: string,
   tool: CustomToolConfig,
   args: Record<string, unknown>,
+  auditLogger?: AuditLogger,
 ) {
   const connConfig = getConnection(config, tool.connection);
 
@@ -357,9 +361,34 @@ async function executeCustomTool(
   }
 
   // Execute with tool-level overrides
-  const result = await cm.execute(connConfig, sql, values, {
-    maxRows: tool.maxRows ?? connConfig.maxRows,
-    timeoutMs: tool.timeout ?? connConfig.timeout,
+  const startMs = Date.now();
+  let result;
+  try {
+    result = await cm.execute(connConfig, sql, values, {
+      maxRows: tool.maxRows ?? connConfig.maxRows,
+      timeoutMs: tool.timeout ?? connConfig.timeout,
+    });
+  } catch (err) {
+    void auditLogger?.log({
+      tool: `custom_${_toolName}`,
+      connection: connConfig.name,
+      sql,
+      params: values,
+      durationMs: Date.now() - startMs,
+      rows: 0,
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
+  void auditLogger?.log({
+    tool: `custom_${_toolName}`,
+    connection: connConfig.name,
+    sql,
+    params: values,
+    durationMs: Date.now() - startMs,
+    rows: result.rowCount,
+    status: "ok",
   });
 
   return formatQueryResult(result, tool.maxRows ?? connConfig.maxRows, connConfig.maxValueLength);

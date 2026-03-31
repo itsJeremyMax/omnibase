@@ -26,6 +26,7 @@ import { handleTestConnection } from "./tools/test-connection.js";
 import { OmnibaseError } from "./types.js";
 import { validateCustomTools, registerCustomTools, reloadCustomTools } from "./custom-tools.js";
 import { ConfigWatcher } from "./config-watcher.js";
+import { AuditLogger } from "./audit-logger.js";
 
 const STARTER_CONFIG = `# Omnibase configuration
 # All options: https://github.com/itsJeremyMax/omnibase#configuration-reference
@@ -58,11 +59,33 @@ if (cliCommand === "init") {
   handleToolsCommand();
 } else if (cliCommand === "status") {
   handleStatusCommand();
+} else if (cliCommand === "audit") {
+  handleAuditCommand();
 }
 
 async function handleStatusCommand(): Promise<never> {
   const { runStatus } = await import("./cli/status.js");
   await runStatus();
+  process.exit(0);
+}
+
+async function handleAuditCommand(): Promise<never> {
+  const { audit } = await import("./cli/audit.js");
+  const subcommand = process.argv[3];
+  if (subcommand === "tail") {
+    await audit.tail();
+  } else if (subcommand === "search") {
+    await audit.search(process.argv.slice(4).join(" "));
+  } else if (subcommand === "clear") {
+    await audit.clear();
+  } else {
+    console.error("Usage: omnibase-mcp audit <tail|search|clear>");
+    console.error("");
+    console.error("Commands:");
+    console.error("  tail            Live tail the audit log");
+    console.error("  search <query>  Search log entries by keyword");
+    console.error("  clear           Clear the audit log");
+  }
   process.exit(0);
 }
 
@@ -120,6 +143,11 @@ async function main() {
     return;
   }
   const config = loadConfig(configPath);
+
+  // Create audit logger
+  const auditLogger = config.audit
+    ? new AuditLogger(config.audit)
+    : new AuditLogger({ enabled: false, path: "", format: "jsonl", maxEntries: 0 });
 
   // Validate custom tools
   validateCustomTools(config);
@@ -207,7 +235,12 @@ async function main() {
     },
     async ({ connection, query, params }) => {
       try {
-        const result = await handleExecuteSql(config, cm, { connection, query, params });
+        const result = await handleExecuteSql(
+          config,
+          cm,
+          { connection, query, params },
+          auditLogger,
+        );
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
         return errorResponse(err);
@@ -241,10 +274,30 @@ async function main() {
       limit: z.number().optional().describe("Number of rows to return (default 10)"),
     },
     async ({ connection, table, limit }) => {
+      const startMs = Date.now();
       try {
         const result = await handleGetSample(config, cm, { connection, table, limit });
+        void auditLogger.log({
+          tool: "get_sample",
+          connection,
+          sql: `SELECT * FROM ${table} LIMIT ${limit ?? 10}`,
+          params: [],
+          durationMs: Date.now() - startMs,
+          rows: result.row_count,
+          status: "ok",
+        });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
+        void auditLogger.log({
+          tool: "get_sample",
+          connection,
+          sql: `SELECT * FROM ${table} LIMIT ${limit ?? 10}`,
+          params: [],
+          durationMs: Date.now() - startMs,
+          rows: 0,
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
+        });
         return errorResponse(err);
       }
     },
@@ -349,10 +402,30 @@ async function main() {
       sample_size: z.number().optional().describe("Max rows to sample (default 10000)"),
     },
     async ({ connection, table, sample_size }) => {
+      const startMs = Date.now();
       try {
         const result = await handleGetTableStats(config, cm, { connection, table, sample_size });
+        void auditLogger.log({
+          tool: "get_table_stats",
+          connection,
+          sql: `[stats query on ${table}, sample=${sample_size ?? 10000}]`,
+          params: [],
+          durationMs: Date.now() - startMs,
+          rows: result.columns?.length ?? 0,
+          status: "ok",
+        });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
+        void auditLogger.log({
+          tool: "get_table_stats",
+          connection,
+          sql: `[stats query on ${table}]`,
+          params: [],
+          durationMs: Date.now() - startMs,
+          rows: 0,
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
+        });
         return errorResponse(err);
       }
     },
@@ -368,6 +441,7 @@ async function main() {
       limit: z.number().optional().describe("Max distinct values to return (default 50)"),
     },
     async ({ connection, table, column, limit }) => {
+      const startMs = Date.now();
       try {
         const result = await handleGetDistinctValues(config, cm, {
           connection,
@@ -375,7 +449,65 @@ async function main() {
           column,
           limit,
         });
+        void auditLogger.log({
+          tool: "get_distinct_values",
+          connection,
+          sql: `SELECT ${column}, COUNT(*) FROM ${table} GROUP BY ${column}`,
+          params: [],
+          durationMs: Date.now() - startMs,
+          rows: result.total_shown,
+          status: "ok",
+        });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      } catch (err) {
+        void auditLogger.log({
+          tool: "get_distinct_values",
+          connection,
+          sql: `SELECT ${column}, COUNT(*) FROM ${table} GROUP BY ${column}`,
+          params: [],
+          durationMs: Date.now() - startMs,
+          rows: 0,
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return errorResponse(err);
+      }
+    },
+  );
+
+  server.tool(
+    "query_history",
+    "View recent query execution history. Shows tool name, connection, SQL, duration, row count, and status. Useful for debugging and understanding what queries have been run.",
+    {
+      connection: z.string().optional().describe("Filter by connection name"),
+      status: z.enum(["ok", "error"]).optional().describe("Filter by status"),
+      limit: z.number().optional().describe("Max entries to return (default 50)"),
+      offset: z.number().optional().describe("Skip N entries for pagination (default 0)"),
+    },
+    async ({ connection, status, limit, offset }) => {
+      try {
+        const entries = await auditLogger.readEntries({ connection, status, limit, offset });
+        if (entries.length === 0) {
+          const hasFilters = connection || status;
+          const message = !config.audit?.enabled
+            ? "No query history found. Audit logging is disabled -- add `audit: { enabled: true }` to your config."
+            : hasFilters
+              ? "No matching entries found."
+              : "No query history found. No queries have been executed yet.";
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({ message, entries: [] }, null, 2),
+              },
+            ],
+          };
+        }
+        return {
+          content: [
+            { type: "text", text: JSON.stringify({ entries, count: entries.length }, null, 2) },
+          ],
+        };
       } catch (err) {
         return errorResponse(err);
       }
@@ -383,7 +515,7 @@ async function main() {
   );
 
   // Register custom tools and track handles for hot reload
-  let customToolHandles = registerCustomTools(server, config, cm);
+  let customToolHandles = registerCustomTools(server, config, cm, auditLogger);
   let activeConfig = config;
 
   // Watch config for changes and reload custom tools
@@ -392,7 +524,7 @@ async function main() {
     (newConfig) => {
       console.error("omnibase: config changed, reloading custom tools...");
       activeConfig = newConfig;
-      customToolHandles = reloadCustomTools(server, newConfig, cm, customToolHandles);
+      customToolHandles = reloadCustomTools(server, newConfig, cm, customToolHandles, auditLogger);
       console.error("omnibase: custom tools reloaded successfully");
     },
     (error) => {

@@ -109,6 +109,12 @@ Then point your MCP client at `node dist/src/index.js` with `cwd` set to your pr
 |------|-------------|
 | `validate_query` | Check syntax, schema references, permissions, and estimate affected rows before executing |
 
+### History
+
+| Tool | What it does |
+|------|-------------|
+| `query_history` | View recent query execution history with filtering by connection, status, and pagination |
+
 ### Custom Tools
 
 Define your own MCP tools as SQL templates in your config. Custom tools are registered alongside built-in tools and go through the same security pipeline.
@@ -160,6 +166,9 @@ npx omnibase-mcp tools remove     # interactive wizard to remove a tool
 npx omnibase-mcp tools validate   # validate custom tool definitions
 npx omnibase-mcp tools test       # dry-run a tool with sample arguments
 npx omnibase-mcp status           # ping all connections, show health dashboard
+npx omnibase-mcp audit tail       # live tail the query audit log
+npx omnibase-mcp audit search <q> # search audit log by keyword
+npx omnibase-mcp audit clear      # clear the audit log
 ```
 
 ## What Makes This Different
@@ -214,6 +223,20 @@ defaults:
   timeout: 30000                # default query timeout in ms
   max_rows: 500                 # default max rows returned per query
 ```
+
+### Audit logging
+
+Log every query to a local file for debugging and compliance. The `query_history` MCP tool lets agents view their own query history. By default, the last 10,000 entries are retained and older entries are automatically pruned.
+
+```yaml
+audit:
+  enabled: true
+  path: ./.omnibase/audit.log     # default: .omnibase/audit.log next to config file
+  format: jsonl                    # jsonl (default) or text
+  max_entries: 10000               # 0 = unlimited (default: 10000)
+```
+
+The audit log defaults to `.omnibase/audit.log` in the same directory as your config file, so each project gets its own log. By default, the last 10,000 entries are retained and older entries are automatically pruned.
 
 ### Config discovery
 
