@@ -528,7 +528,7 @@ async function test(): Promise<void> {
 
   const sidecarPath =
     process.env.OMNIBASE_SIDECAR_PATH ||
-    resolve(__dirname, "..", "..", "..", "sidecar", "omnibase-sidecar");
+    resolve(__dirname, "..", "..", "..", "sidecar", "bin", "omnibase-sidecar");
 
   const sidecar = new SidecarClient(sidecarPath);
   const spinner = p.spinner();

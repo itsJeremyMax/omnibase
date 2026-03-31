@@ -4,10 +4,8 @@ node_modules/
 # Build output
 dist/
 
-# Go sidecar binaries (all platforms)
-sidecar/omnibase-sidecar
-sidecar/omnibase-sidecar.exe
-sidecar/sidecar
+# Sidecar build output (binaries, driver plugins)
+sidecar/bin/
 sidecar/.sidecar-version
 
 # Environment / secrets

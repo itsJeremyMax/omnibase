@@ -77,6 +77,8 @@ if (cliCommand) {
       await handleAuditCommand();
     } else if (cliCommand === "upgrade") {
       await handleUpgradeCommand();
+    } else if (cliCommand === "drivers") {
+      await handleDriversCommand();
     } else if (cliCommand === "--version" || cliCommand === "-V") {
       console.log(`omnibase-mcp v${VERSION}`);
       process.exit(0);
@@ -147,6 +149,31 @@ async function handleUpgradeCommand(): Promise<void> {
   await run();
 }
 
+async function handleDriversCommand(): Promise<void> {
+  const { drivers } = await import("./cli/drivers.js");
+  const subcommand = process.argv[3];
+  if (subcommand === "list") {
+    await drivers.list();
+  } else if (subcommand === "install") {
+    await drivers.install(process.argv[4]);
+  } else if (subcommand === "build") {
+    await drivers.build(process.argv[4]);
+  } else if (subcommand === "clean") {
+    await drivers.clean();
+  } else if (subcommand === "path") {
+    await drivers.path();
+  } else {
+    console.error("Usage: omnibase-mcp drivers <list|install|build|clean|path>");
+    console.error("");
+    console.error("Commands:");
+    console.error("  list              List available drivers and install status");
+    console.error("  install <driver>  Download a specific driver (or --all)");
+    console.error("  build <driver>    Build a driver from source using Go (or --all)");
+    console.error("  clean             Remove old driver versions");
+    console.error("  path              Show driver storage location");
+  }
+}
+
 async function main() {
   // Load config
   const configPath = resolveConfigPath(process.cwd());
@@ -187,7 +214,7 @@ async function main() {
   // Start sidecar
   const sidecarPath =
     process.env.OMNIBASE_SIDECAR_PATH ||
-    resolve(__dirname, "..", "..", "sidecar", "omnibase-sidecar");
+    resolve(__dirname, "..", "..", "sidecar", "bin", "omnibase-sidecar");
   const sidecar = new SidecarClient(sidecarPath);
   await sidecar.start();
 

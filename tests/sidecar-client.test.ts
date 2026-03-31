@@ -3,15 +3,18 @@ import { SidecarClient } from "../src/sidecar-client.js";
 import { existsSync } from "fs";
 import { resolve } from "path";
 
-const SIDECAR_PATH = resolve(__dirname, "../sidecar/omnibase-sidecar");
+const SIDECAR_PATH = resolve(__dirname, "../sidecar/bin/omnibase-sidecar");
+const DRIVERS_PATH = resolve(__dirname, "../sidecar/bin");
 
-// Skip if sidecar binary not built
+// Skip if sidecar binary not built (manifest is embedded, no file check needed)
 const canRun = existsSync(SIDECAR_PATH);
 
 describe.skipIf(!canRun)("SidecarClient", () => {
   let client: SidecarClient;
 
   beforeAll(async () => {
+    // Tell the sidecar where to find driver plugins
+    process.env.OMNIBASE_DRIVERS_PATH = DRIVERS_PATH;
     client = new SidecarClient(SIDECAR_PATH);
     await client.start();
   });

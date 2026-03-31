@@ -53,12 +53,15 @@ omnibase/
 │   ├── permission-enforcer.ts
 │   ├── output-formatter.ts
 │   └── tools/              # One file per MCP tool (13 tools)
-├── sidecar/                # Go sidecar binary
-│   ├── main.go             # JSON-RPC server loop + explain/validate handlers
-│   ├── protocol.go         # Request/response types
-│   ├── connections.go      # Connection management via usql/dburl
-│   ├── execute.go          # Query execution with placeholder translation
-│   └── schema.go           # Schema introspection via usql metadata
+├── sidecar/                # Go sidecar (core multiplexer + driver plugins)
+│   ├── main.go             # Core sidecar: routes JSON-RPC to driver subprocesses
+│   ├── drivers.json        # Manifest mapping DSN schemes to driver binary names
+│   ├── build-drivers.sh    # Build script for all driver plugins
+│   ├── driverplugin/       # Shared package: protocol types, handlers, ConnectionManager
+│   ├── driverclient/       # JSON-RPC client for driver subprocess communication
+│   ├── drivermanager/      # Driver resolution, lifecycle, download, source builds
+│   ├── drivers/            # One package per database driver (45 total)
+│   └── bin/                # Build output (gitignored)
 ├── tests/                  # Unit tests (vitest)
 ├── tests-integration/      # Cross-database integration tests
 │   ├── docker-compose.yml  # Postgres + MySQL containers

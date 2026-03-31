@@ -5,7 +5,7 @@ import { ConnectionManager } from "../connection-manager.js";
 export function resolveSidecarPath(): string {
   return (
     process.env.OMNIBASE_SIDECAR_PATH ||
-    resolve(__dirname, "..", "..", "..", "sidecar", "omnibase-sidecar")
+    resolve(__dirname, "..", "..", "..", "sidecar", "bin", "omnibase-sidecar")
   );
 }
 

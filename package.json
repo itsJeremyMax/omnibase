@@ -25,7 +25,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:docker:up": "docker compose -f tests-integration/docker-compose.yml up -d --wait",
     "test:docker:down": "docker compose -f tests-integration/docker-compose.yml down -v",
-    "build:sidecar": "cd sidecar && go build -o omnibase-sidecar .",
+    "build:sidecar": "cd sidecar && mkdir -p bin && go build -ldflags=\"-s -w\" -o bin/omnibase-sidecar .",
     "start": "node dist/src/index.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

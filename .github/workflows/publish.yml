@@ -59,10 +59,11 @@ jobs:
           CC: ${{ matrix.cc }}
         run: |
           cd sidecar
+          LDFLAGS="-s -w"
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            go build -o omnibase-sidecar-${{ matrix.suffix }}.exe .
+            go build -ldflags="$LDFLAGS" -o omnibase-sidecar-${{ matrix.suffix }}.exe .
           else
-            go build -o omnibase-sidecar-${{ matrix.suffix }} .
+            go build -ldflags="$LDFLAGS" -o omnibase-sidecar-${{ matrix.suffix }} .
           fi
 
       - name: Create archive
@@ -91,17 +92,127 @@ jobs:
               omnibase-sidecar-${{ matrix.suffix }}.tar.gz
           fi
 
+  build-drivers:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+            cc: gcc
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            suffix: linux-arm64
+            cc: aarch64-linux-gnu-gcc
+          - os: macos-15-intel
+            goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+            cc: ""
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+            cc: ""
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            suffix: windows-amd64
+            cc: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache-dependency-path: sidecar/go.sum
+
+      - name: Install cross-compiler
+        if: matrix.cc == 'aarch64-linux-gnu-gcc'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build all driver plugins
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "1"
+          CC: ${{ matrix.cc }}
+        run: |
+          cd sidecar
+          LDFLAGS="-s -w"
+          mkdir -p build-out
+
+          built=0
+          failed=0
+          for d in drivers/*/; do
+            name=$(basename "$d")
+            [ ! -f "$d/main.go" ] && continue
+            binary="driver-${name}-${{ matrix.suffix }}"
+            if [ "${{ matrix.goos }}" = "windows" ]; then
+              binary="${binary}.exe"
+            fi
+            printf "  Building %-25s" "$name"
+            if go build -ldflags="$LDFLAGS" -o "build-out/$binary" "./$d" 2>/dev/null; then
+              echo "ok"
+              built=$((built + 1))
+            else
+              echo "FAILED"
+              failed=$((failed + 1))
+            fi
+          done
+
+          echo ""
+          echo "Built: $built  Failed: $failed"
+
+          # Fail the job if any core driver failed
+          for core in postgres mysql sqlite3 sqlserver; do
+            binary="driver-${core}-${{ matrix.suffix }}"
+            [ "${{ matrix.goos }}" = "windows" ] && binary="${binary}.exe"
+            if [ ! -f "build-out/$binary" ]; then
+              echo "FATAL: core driver $core failed to build"
+              exit 1
+            fi
+          done
+
+      - name: Upload driver binaries
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd sidecar/build-out
+          for binary in driver-*; do
+            echo "Uploading $binary..."
+            gh release upload ${{ github.event.release.tag_name }} \
+              --repo ${{ github.repository }} \
+              "$binary" || echo "Warning: failed to upload $binary"
+          done
+
   upload-checksums:
-    needs: build-sidecar
+    needs: [build-sidecar, build-drivers]
     runs-on: ubuntu-latest
     steps:
-      - name: Download release assets
+      - uses: actions/checkout@v6
+
+      - name: Upload drivers.json manifest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} \
+            --repo ${{ github.repository }} \
+            sidecar/drivers.json
+
+      - name: Download all release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release download ${{ github.event.release.tag_name }} \
             --repo ${{ github.repository }} \
             --pattern 'omnibase-sidecar-*' \
+            --pattern 'driver-*' \
             --dir assets
 
       - name: Generate and upload checksums
@@ -109,12 +220,23 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd assets
-          sha256sum omnibase-sidecar-* | sort -k2 > checksums-sha256.txt
-          echo "Generated checksums:"
+
+          # Core sidecar checksums
+          sha256sum omnibase-sidecar-* 2>/dev/null | sort -k2 > checksums-sha256.txt
+          echo "Core sidecar checksums:"
           cat checksums-sha256.txt
+
+          # Driver plugin checksums
+          sha256sum driver-* 2>/dev/null | sort -k2 > driver-checksums-sha256.txt
+          echo ""
+          echo "Driver plugin checksums ($(wc -l < driver-checksums-sha256.txt) entries):"
+          head -10 driver-checksums-sha256.txt
+          [ $(wc -l < driver-checksums-sha256.txt) -gt 10 ] && echo "..."
+
           gh release upload ${{ github.event.release.tag_name }} \
             --repo ${{ github.repository }} \
-            checksums-sha256.txt
+            checksums-sha256.txt \
+            driver-checksums-sha256.txt
 
   publish-npm:
     needs: upload-checksums

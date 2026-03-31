@@ -23,6 +23,7 @@ const crypto = require("crypto");
 const REPO = "itsJeremyMax/omnibase";
 const BINARY_NAME = "omnibase-sidecar";
 const SIDECAR_DIR = join(__dirname, "..", "sidecar");
+const BIN_DIR = join(SIDECAR_DIR, "bin");
 const VERSION_FILE = join(SIDECAR_DIR, ".sidecar-version");
 
 // Read version from package.json
@@ -54,7 +55,7 @@ function getBinaryName(platformKey) {
 
 function getLocalBinaryPath() {
   const isWindows = os.platform() === "win32";
-  return join(SIDECAR_DIR, isWindows ? `${BINARY_NAME}.exe` : BINARY_NAME);
+  return join(BIN_DIR, isWindows ? `${BINARY_NAME}.exe` : BINARY_NAME);
 }
 
 function getInstalledVersion() {
@@ -132,6 +133,122 @@ function verifyChecksum(filePath, expectedHash) {
   return { match: actualHash === expectedHash, actualHash };
 }
 
+function getDriversDir() {
+  const home = os.homedir();
+  return join(home, ".omnibase", "drivers", VERSION);
+}
+
+async function downloadDrivers() {
+  // Try to read the user's config to determine which drivers to download
+  const configPaths = [
+    join(process.cwd(), "omnibase.config.yaml"),
+    join(os.homedir(), ".config", "omnibase", "config.yaml"),
+  ];
+
+  let configContent = null;
+  for (const p of configPaths) {
+    try {
+      configContent = readFileSync(p, "utf8");
+      break;
+    } catch {}
+  }
+
+  if (!configContent) {
+    console.log(
+      "No config found, skipping driver download. Drivers will be downloaded on first use.",
+    );
+    return;
+  }
+
+  // Parse DSN schemes from config (simple regex)
+  const dsnPattern = /dsn:\s*["']?(\w+):/g;
+  const schemes = new Set();
+  let match;
+  while ((match = dsnPattern.exec(configContent)) !== null) {
+    schemes.add(match[1].toLowerCase());
+  }
+
+  if (schemes.size === 0) return;
+
+  const driversDir = getDriversDir();
+  mkdirSync(driversDir, { recursive: true });
+
+  // Download manifest
+  const manifestUrl = `https://github.com/${REPO}/releases/download/omnibase-mcp-v${VERSION}/drivers.json`;
+  const manifestPath = join(driversDir, "drivers.json");
+  try {
+    await download(manifestUrl, manifestPath);
+  } catch (err) {
+    console.log(`Could not download driver manifest: ${err.message}`);
+    console.log("Drivers will be downloaded on first use.");
+    return;
+  }
+
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+
+  // Download checksums
+  const checksumsUrl = `https://github.com/${REPO}/releases/download/omnibase-mcp-v${VERSION}/driver-checksums-sha256.txt`;
+  const checksumsPath = join(driversDir, "driver-checksums-sha256.txt");
+  try {
+    await download(checksumsUrl, checksumsPath);
+  } catch {
+    console.log("Could not download driver checksums. Drivers will be downloaded on first use.");
+    return;
+  }
+  const checksumsText = readFileSync(checksumsPath, "utf8");
+
+  const platformKey = getPlatformKey();
+  if (!platformKey) return;
+
+  // Find which drivers to download
+  const neededDrivers = new Set();
+  for (const [, entry] of Object.entries(manifest.drivers)) {
+    for (const scheme of entry.schemes) {
+      if (schemes.has(scheme)) {
+        neededDrivers.add(entry.binary);
+        break;
+      }
+    }
+  }
+
+  for (const binaryName of neededDrivers) {
+    const assetName = `${binaryName}-${platformKey}`;
+    const destPath = join(driversDir, assetName);
+
+    if (existsSync(destPath)) {
+      console.log(`  ${assetName} already installed.`);
+      continue;
+    }
+
+    const url = `https://github.com/${REPO}/releases/download/omnibase-mcp-v${VERSION}/${assetName}`;
+    console.log(`  Downloading ${assetName}...`);
+
+    try {
+      await download(url, destPath);
+    } catch (err) {
+      console.log(`  Failed: ${err.message}`);
+      continue;
+    }
+
+    const expectedHash = getExpectedChecksum(checksumsText, assetName);
+    if (!expectedHash) {
+      unlinkSync(destPath);
+      console.log(`  No checksum for ${assetName}, skipping.`);
+      continue;
+    }
+
+    const { match: checksumMatch } = verifyChecksum(destPath, expectedHash);
+    if (!checksumMatch) {
+      unlinkSync(destPath);
+      console.log(`  Checksum mismatch for ${assetName}, skipping.`);
+      continue;
+    }
+
+    chmodSync(destPath, 0o755);
+    console.log(`  ${assetName} installed.`);
+  }
+}
+
 async function main() {
   const binaryPath = getLocalBinaryPath();
   const installedVersion = getInstalledVersion();
@@ -146,14 +263,17 @@ async function main() {
   // Log why we're (re)downloading
   if (binaryExists && installedVersion && installedVersion !== VERSION) {
     console.log(`Upgrading omnibase-sidecar from ${installedVersion} to ${VERSION}...`);
+    console.log(
+      `Note: The sidecar now uses separate driver plugins. Drivers will be downloaded to ~/.omnibase/drivers/${VERSION}/`,
+    );
     unlinkSync(binaryPath);
   } else if (binaryExists && !installedVersion) {
     console.log(`omnibase-sidecar binary found without version info, re-downloading ${VERSION}...`);
     unlinkSync(binaryPath);
   }
 
-  if (!existsSync(SIDECAR_DIR)) {
-    mkdirSync(SIDECAR_DIR, { recursive: true });
+  if (!existsSync(BIN_DIR)) {
+    mkdirSync(BIN_DIR, { recursive: true });
   }
 
   const platformKey = getPlatformKey();
@@ -220,6 +340,7 @@ async function main() {
       chmodSync(binaryPath, 0o755);
       writeInstalledVersion();
       console.log("omnibase-sidecar downloaded successfully.");
+      await downloadDrivers();
       return;
     }
   }
@@ -228,12 +349,16 @@ async function main() {
   try {
     execSync("go version", { stdio: "ignore" });
     console.log("Go detected. Building sidecar from source...");
-    execSync(`cd "${SIDECAR_DIR}" && go build -o ${BINARY_NAME} .`, {
-      stdio: "inherit",
-    });
+    execSync(
+      `cd "${SIDECAR_DIR}" && mkdir -p bin && go build -ldflags="-s -w" -o bin/${BINARY_NAME} .`,
+      {
+        stdio: "inherit",
+      },
+    );
     chmodSync(binaryPath, 0o755);
     writeInstalledVersion();
     console.log("omnibase-sidecar built successfully.");
+    await downloadDrivers();
     return;
   } catch {
     // Go not available

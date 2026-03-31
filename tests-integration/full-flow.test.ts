@@ -12,7 +12,8 @@ import { handleExplainQuery } from "../src/tools/explain-query.js";
 import { resolve } from "path";
 import { existsSync } from "fs";
 
-const SIDECAR_PATH = resolve(__dirname, "../sidecar/omnibase-sidecar");
+const SIDECAR_PATH = resolve(__dirname, "../sidecar/bin/omnibase-sidecar");
+const DRIVERS_PATH = resolve(__dirname, "../sidecar/bin");
 const canRun = existsSync(SIDECAR_PATH);
 
 describe.skipIf(!canRun)("Full flow integration", () => {
@@ -37,6 +38,7 @@ defaults:
 `);
 
   beforeAll(async () => {
+    process.env.OMNIBASE_DRIVERS_PATH = DRIVERS_PATH;
     sidecar = new SidecarClient(SIDECAR_PATH);
     await sidecar.start();
     cm = new ConnectionManager(sidecar);

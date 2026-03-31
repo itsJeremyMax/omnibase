@@ -45,7 +45,12 @@ jobs:
           go-version: "1.26"
           cache-dependency-path: sidecar/go.sum
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: cd sidecar && go build -o omnibase-sidecar . && chmod +x omnibase-sidecar
+      - name: Build sidecar and driver plugins for tests
+        run: |
+          cd sidecar
+          mkdir -p bin
+          go build -ldflags="-s -w" -o bin/omnibase-sidecar . && chmod +x bin/omnibase-sidecar
+          go build -ldflags="-s -w" -o bin/driver-sqlite3-linux-amd64 ./drivers/sqlite3/
       - run: pnpm test
 
   test-go:
@@ -58,7 +63,7 @@ jobs:
         with:
           go-version: "1.26"
           cache-dependency-path: sidecar/go.sum
-      - run: cd sidecar && go test ./... -v
+      - run: cd sidecar && go test ./driverplugin/... ./driverclient/... ./drivermanager/... -v
 
   test-integration:
     name: Integration Tests
@@ -106,5 +111,14 @@ jobs:
           go-version: "1.26"
           cache-dependency-path: sidecar/go.sum
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: cd sidecar && go build -o omnibase-sidecar . && chmod +x omnibase-sidecar
+      - name: Build sidecar and driver plugins for integration tests
+        run: |
+          cd sidecar
+          mkdir -p bin
+          go build -ldflags="-s -w" -o bin/omnibase-sidecar . && chmod +x bin/omnibase-sidecar
+          for driver in sqlite3 postgres mysql; do
+            go build -ldflags="-s -w" -o bin/driver-${driver}-linux-amd64 ./drivers/${driver}/
+          done
       - run: pnpm run test:integration
+        env:
+          OMNIBASE_DRIVERS_PATH: sidecar/bin

@@ -5,6 +5,7 @@ import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync, chmodSy
 
 const POSTINSTALL = resolve(__dirname, "../scripts/postinstall.js");
 const SIDECAR_DIR = resolve(__dirname, "../sidecar");
+const BIN_DIR = join(SIDECAR_DIR, "bin");
 const VERSION_FILE = join(SIDECAR_DIR, ".sidecar-version");
 const packageJson = require("../package.json");
 const VERSION = packageJson.version;
@@ -12,7 +13,7 @@ const NODE = process.execPath;
 
 function getBinaryPath() {
   const isWindows = process.platform === "win32";
-  return join(SIDECAR_DIR, isWindows ? "omnibase-sidecar.exe" : "omnibase-sidecar");
+  return join(BIN_DIR, isWindows ? "omnibase-sidecar.exe" : "omnibase-sidecar");
 }
 
 function saveSidecarState() {
@@ -25,7 +26,7 @@ function saveSidecarState() {
 }
 
 function restoreSidecarState(state: ReturnType<typeof saveSidecarState>) {
-  if (!existsSync(SIDECAR_DIR)) mkdirSync(SIDECAR_DIR, { recursive: true });
+  if (!existsSync(BIN_DIR)) mkdirSync(BIN_DIR, { recursive: true });
   if (state.binaryExists && state.binaryContent) {
     writeFileSync(state.binaryPath, state.binaryContent);
     chmodSync(state.binaryPath, 0o755);
@@ -202,7 +203,7 @@ describe("postinstall script", () => {
 
     beforeEach(() => {
       savedState = saveSidecarState();
-      if (!existsSync(SIDECAR_DIR)) mkdirSync(SIDECAR_DIR, { recursive: true });
+      if (!existsSync(BIN_DIR)) mkdirSync(BIN_DIR, { recursive: true });
     });
 
     afterEach(() => {

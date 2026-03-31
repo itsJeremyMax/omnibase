@@ -29,7 +29,8 @@ import { existsSync } from "fs";
 import type { OmnibaseConfig } from "../src/types.js";
 import net from "net";
 
-const SIDECAR_PATH = resolve(__dirname, "../sidecar/omnibase-sidecar");
+const SIDECAR_PATH = resolve(__dirname, "../sidecar/bin/omnibase-sidecar");
+const DRIVERS_PATH = resolve(__dirname, "../sidecar/bin");
 const canRun = existsSync(SIDECAR_PATH);
 
 /** Check if a TCP port is reachable */
@@ -142,6 +143,7 @@ for (const db of databases) {
         if (!available) return;
       }
 
+      process.env.OMNIBASE_DRIVERS_PATH = DRIVERS_PATH;
       sidecar = new SidecarClient(SIDECAR_PATH);
       await sidecar.start();
       cm = new ConnectionManager(sidecar);

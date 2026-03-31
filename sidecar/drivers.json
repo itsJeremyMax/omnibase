@@ -1,0 +1,184 @@
+{
+  "drivers": {
+    "postgres": {
+      "binary": "driver-postgres",
+      "schemes": ["pg", "postgres", "postgresql", "pgsql"]
+    },
+    "mysql": {
+      "binary": "driver-mysql",
+      "schemes": ["my", "mysql", "mariadb", "maria", "percona", "aurora"]
+    },
+    "sqlite3": {
+      "binary": "driver-sqlite3",
+      "schemes": ["sqlite", "sqlite3", "sq", "file"]
+    },
+    "sqlserver": {
+      "binary": "driver-sqlserver",
+      "schemes": ["mssql", "sqlserver", "ms", "azuresql"]
+    },
+    "clickhouse": {
+      "binary": "driver-clickhouse",
+      "schemes": ["clickhouse", "ch"]
+    },
+    "duckdb": {
+      "binary": "driver-duckdb",
+      "schemes": ["duckdb", "dk", "ddb", "duck"]
+    },
+    "pgx": {
+      "binary": "driver-pgx",
+      "schemes": ["pgx", "px"]
+    },
+    "cassandra": {
+      "binary": "driver-cassandra",
+      "schemes": ["cql", "ca", "cassandra", "datastax", "scy", "scylla"]
+    },
+    "snowflake": {
+      "binary": "driver-snowflake",
+      "schemes": ["snowflake", "sf"]
+    },
+    "bigquery": {
+      "binary": "driver-bigquery",
+      "schemes": ["bigquery", "bq"]
+    },
+    "trino": {
+      "binary": "driver-trino",
+      "schemes": ["trino", "trs", "trinos"]
+    },
+    "presto": {
+      "binary": "driver-presto",
+      "schemes": ["presto", "prs", "prestodb", "prestos", "prestodbs"]
+    },
+    "vertica": {
+      "binary": "driver-vertica",
+      "schemes": ["vertica", "ve"]
+    },
+    "hive": {
+      "binary": "driver-hive",
+      "schemes": ["hive", "hive2"]
+    },
+    "exasol": {
+      "binary": "driver-exasol",
+      "schemes": ["exasol", "ex", "exa"]
+    },
+    "firebird": {
+      "binary": "driver-firebird",
+      "schemes": ["firebirdsql", "fb", "firebird"]
+    },
+    "cosmos": {
+      "binary": "driver-cosmos",
+      "schemes": ["cosmos", "cm", "gocosmos"]
+    },
+    "dynamodb": {
+      "binary": "driver-dynamodb",
+      "schemes": ["godynamo", "dy", "dyn", "dynamo", "dynamodb"]
+    },
+    "spanner": {
+      "binary": "driver-spanner",
+      "schemes": ["spanner", "sp"]
+    },
+    "databricks": {
+      "binary": "driver-databricks",
+      "schemes": ["databricks", "br", "brick", "bricks", "databrick"]
+    },
+    "databend": {
+      "binary": "driver-databend",
+      "schemes": ["databend", "dd", "bend"]
+    },
+    "athena": {
+      "binary": "driver-athena",
+      "schemes": ["awsathena", "s3", "aws", "athena"]
+    },
+    "couchbase": {
+      "binary": "driver-couchbase",
+      "schemes": ["n1ql", "couchbase"]
+    },
+    "flightsql": {
+      "binary": "driver-flightsql",
+      "schemes": ["flightsql", "fl", "flight"]
+    },
+    "h2": {
+      "binary": "driver-h2",
+      "schemes": ["h2"]
+    },
+    "ignite": {
+      "binary": "driver-ignite",
+      "schemes": ["ignite", "ig", "gridgain"]
+    },
+    "impala": {
+      "binary": "driver-impala",
+      "schemes": ["impala", "im"]
+    },
+    "maxcompute": {
+      "binary": "driver-maxcompute",
+      "schemes": ["maxcompute", "mc"]
+    },
+    "netezza": {
+      "binary": "driver-netezza",
+      "schemes": ["nzgo", "nz", "netezza"]
+    },
+    "voltdb": {
+      "binary": "driver-voltdb",
+      "schemes": ["voltdb", "volt", "vdb"]
+    },
+    "ydb": {
+      "binary": "driver-ydb",
+      "schemes": ["ydb", "yd", "yds", "ydbs"]
+    },
+    "avatica": {
+      "binary": "driver-avatica",
+      "schemes": ["avatica", "phoenix"]
+    },
+    "chai": {
+      "binary": "driver-chai",
+      "schemes": ["chai", "ci", "chaisql", "genji"]
+    },
+    "csvq": {
+      "binary": "driver-csvq",
+      "schemes": ["csvq", "csv", "tsv", "json"]
+    },
+    "moderncsqlite": {
+      "binary": "driver-moderncsqlite",
+      "schemes": ["moderncsqlite", "mq", "modernsqlite"]
+    },
+    "mymysql": {
+      "binary": "driver-mymysql",
+      "schemes": ["mymysql", "zm", "mymy"]
+    },
+    "ql": {
+      "binary": "driver-ql",
+      "schemes": ["ql", "cznic", "cznicql"]
+    },
+    "ramsql": {
+      "binary": "driver-ramsql",
+      "schemes": ["ramsql", "rm", "ram"]
+    },
+    "sapase": {
+      "binary": "driver-sapase",
+      "schemes": ["tds", "ax", "ase", "sapase"]
+    },
+    "saphana": {
+      "binary": "driver-saphana",
+      "schemes": ["hdb", "sa", "saphana", "sap", "hana"]
+    },
+    "ots": {
+      "binary": "driver-ots",
+      "schemes": ["ots", "tablestore"]
+    },
+    "oracle": {
+      "binary": "driver-oracle",
+      "schemes": ["oracle", "ora", "oci", "oci8"]
+    },
+    "odbc": {
+      "binary": "driver-odbc",
+      "schemes": ["odbc"]
+    },
+    "adodb": {
+      "binary": "driver-adodb",
+      "schemes": ["adodb", "ado"]
+    },
+    "godror": {
+      "binary": "driver-godror",
+      "schemes": ["godror", "gr"]
+    }
+  }
+}
