@@ -29,11 +29,15 @@ export function selectWithLimit(
   table: string,
   limit: number,
   dialect: Dialect,
+  options?: { where?: string; orderBy?: string },
 ): string {
+  const wherePart = options?.where ? ` WHERE ${options.where}` : "";
+  const orderPart = options?.orderBy ? ` ORDER BY ${options.orderBy}` : "";
+
   if (dialect === "mssql") {
-    return `SELECT TOP ${limit} ${columns} FROM ${table}`;
+    return `SELECT TOP ${limit} ${columns} FROM ${table}${wherePart}${orderPart}`;
   }
-  return `SELECT ${columns} FROM ${table} LIMIT ${limit}`;
+  return `SELECT ${columns} FROM ${table}${wherePart}${orderPart} LIMIT ${limit}`;
 }
 
 /**

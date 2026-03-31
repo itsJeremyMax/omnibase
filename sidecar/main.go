@@ -10,6 +10,8 @@ import (
 
 	// Import usql drivers — each import registers the driver with database/sql
 	// and provides metadata readers for schema introspection.
+	// Note: limited to core databases for now. A dynamic driver plugin system
+	// is planned to support all 45+ usql databases without bloating the binary.
 	_ "github.com/xo/usql/drivers/mysql"
 	_ "github.com/xo/usql/drivers/postgres"
 	_ "github.com/xo/usql/drivers/sqlite3"
@@ -83,7 +85,12 @@ func handleConnect(cm *ConnectionManager, req RPCRequest) RPCResponse {
 		return MakeError(req.ID, "CONNECTION_ERROR", fmt.Sprintf("failed to connect '%s'", id), err.Error())
 	}
 
-	return MakeSuccess(req.ID, ConnectResult{OK: true})
+	driver := ""
+	if conn, err := cm.Get(id); err == nil && conn.URL != nil {
+		driver = conn.URL.Driver
+	}
+
+	return MakeSuccess(req.ID, ConnectResult{OK: true, Driver: driver})
 }
 
 func handleExecute(cm *ConnectionManager, req RPCRequest) RPCResponse {
@@ -125,6 +132,8 @@ func handleExplain(cm *ConnectionManager, req RPCRequest) RPCResponse {
 		return MakeError(req.ID, "INVALID_PARAMS", "query is required", "")
 	}
 
+	analyze := req.Params.Analyze
+
 	// Auto-translate placeholders
 	if conn.URL != nil {
 		style := getPlaceholderStyle(conn.URL.Driver)
@@ -148,7 +157,14 @@ func handleExplain(cm *ConnectionManager, req RPCRequest) RPCResponse {
 		}
 		defer singleConn.Close()
 
-		if _, err := singleConn.ExecContext(context.Background(), "SET SHOWPLAN_TEXT ON"); err != nil {
+		showplanOn := "SET SHOWPLAN_TEXT ON"
+		showplanOff := "SET SHOWPLAN_TEXT OFF"
+		if analyze {
+			showplanOn = "SET STATISTICS PROFILE ON"
+			showplanOff = "SET STATISTICS PROFILE OFF"
+		}
+
+		if _, err := singleConn.ExecContext(context.Background(), showplanOn); err != nil {
 			return MakeError(req.ID, "QUERY_ERROR", "failed to enable SHOWPLAN: "+err.Error(), "")
 		}
 
@@ -156,7 +172,7 @@ func handleExplain(cm *ConnectionManager, req RPCRequest) RPCResponse {
 		rows, err := singleConn.QueryContext(context.Background(), query)
 		var planResult *ExecuteResult
 		if err != nil {
-			singleConn.ExecContext(context.Background(), "SET SHOWPLAN_TEXT OFF")
+			singleConn.ExecContext(context.Background(), showplanOff)
 			return MakeError(req.ID, "QUERY_ERROR", err.Error(), "")
 		}
 
@@ -196,7 +212,7 @@ func handleExplain(cm *ConnectionManager, req RPCRequest) RPCResponse {
 		}
 		rows.Close()
 
-		singleConn.ExecContext(context.Background(), "SET SHOWPLAN_TEXT OFF")
+		singleConn.ExecContext(context.Background(), showplanOff)
 
 		planResult = &ExecuteResult{
 			Columns:  columns,
@@ -210,7 +226,11 @@ func handleExplain(cm *ConnectionManager, req RPCRequest) RPCResponse {
 	// Standard path: try EXPLAIN QUERY PLAN (SQLite), then EXPLAIN (Postgres, MySQL)
 	result, err := Execute(cm, req.Params.ID, "EXPLAIN QUERY PLAN "+query, nil, 500, 30000)
 	if err != nil {
-		result, err = Execute(cm, req.Params.ID, "EXPLAIN "+query, nil, 500, 30000)
+		prefix := "EXPLAIN "
+		if analyze {
+			prefix = "EXPLAIN ANALYZE "
+		}
+		result, err = Execute(cm, req.Params.ID, prefix+query, nil, 500, 30000)
 		if err != nil {
 			return MakeError(req.ID, "QUERY_ERROR", err.Error(), "")
 		}

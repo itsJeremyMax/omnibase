@@ -8,6 +8,9 @@ interface IndexEntry {
   name: string;
   columns: string[];
   unique: boolean;
+  type: string;
+  partial: boolean;
+  filter?: string;
 }
 
 export async function handleGetIndexes(
@@ -38,12 +41,18 @@ export async function handleGetIndexes(
       continue;
     }
     for (const idx of table.indexes ?? []) {
-      indexes.push({
+      const entry: IndexEntry = {
         table: table.name,
         name: idx.name,
         columns: idx.columns,
         unique: idx.unique,
-      });
+        type: idx.type || "unknown",
+        partial: idx.filter != null,
+      };
+      if (idx.filter != null) {
+        entry.filter = idx.filter;
+      }
+      indexes.push(entry);
     }
   }
 

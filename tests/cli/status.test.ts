@@ -26,7 +26,7 @@ describe("detectDbType", () => {
 
 function makeMockBackend(overrides?: Partial<DatabaseBackend>): DatabaseBackend {
   return {
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: vi.fn().mockResolvedValue({ driver: "" }),
     execute: vi.fn(),
     getSchema: vi.fn(),
     explainQuery: vi.fn(),

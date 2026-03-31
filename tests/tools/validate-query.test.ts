@@ -73,7 +73,7 @@ const mockSchema = {
 
 function makeCm(countResult?: number) {
   const backend = {
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: vi.fn().mockResolvedValue({ driver: "" }),
     execute: vi.fn().mockResolvedValue({
       columns: ["count(*)"],
       rows: [[countResult ?? 0]],
@@ -90,7 +90,7 @@ function makeCm(countResult?: number) {
 
 function makeCmWithDbValidation(dbValid: boolean, countResult?: number) {
   const backend = {
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: vi.fn().mockResolvedValue({ driver: "" }),
     execute: vi.fn().mockResolvedValue({
       columns: ["count(*)"],
       rows: [[countResult ?? 0]],

@@ -213,7 +213,7 @@ async function main() {
   // Register tools
   server.tool(
     "list_connections",
-    "List all configured database connections with their status and permission levels",
+    "List all configured database connections with their status, permission levels, and database type (postgresql, mysql, sqlite, sqlserver). Use the database type to write dialect-correct SQL.",
     {},
     async () => {
       try {
@@ -261,7 +261,7 @@ async function main() {
 
   const executeSqlHandle = server.tool(
     "execute_sql",
-    "Execute a SQL query. Permission level of the connection determines what's allowed (read-only, read-write, admin). Supports parameterized queries.",
+    "Execute a SQL query. Permission level of the connection determines what's allowed (read-only, read-write, admin). Supports parameterized queries and pagination via limit/offset.",
     {
       connection: z.string().describe("Connection name from config"),
       query: z.string().describe("SQL query to execute"),
@@ -269,13 +269,23 @@ async function main() {
         .array(z.unknown())
         .optional()
         .describe("Query parameters for parameterized queries"),
+      limit: z
+        .number()
+        .optional()
+        .describe(
+          "Max rows to return (overrides connection default). Use with offset for pagination.",
+        ),
+      offset: z
+        .number()
+        .optional()
+        .describe("Skip this many rows before returning results. Use with limit for pagination."),
     },
-    async ({ connection, query, params }) => {
+    async ({ connection, query, params, limit, offset }) => {
       try {
         const result = await handleExecuteSql(
           config,
           cm,
-          { connection, query, params },
+          { connection, query, params, limit, offset },
           auditLogger,
         );
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
@@ -287,14 +297,20 @@ async function main() {
 
   const explainQueryHandle = server.tool(
     "explain_query",
-    "Show the query execution plan without executing the query. Always allowed regardless of permission level.",
+    "Show the query execution plan without executing the query. Set analyze=true to actually run the query and get real timing data instead of estimates (PostgreSQL/MySQL). Always allowed regardless of permission level.",
     {
       connection: z.string().describe("Connection name from config"),
       query: z.string().describe("SQL query to explain"),
+      analyze: z
+        .boolean()
+        .optional()
+        .describe(
+          "When true, actually execute the query to get real timing and row counts instead of estimates. Default false.",
+        ),
     },
-    async ({ connection, query }) => {
+    async ({ connection, query, analyze }) => {
       try {
-        const result = await handleExplainQuery(config, cm, { connection, query });
+        const result = await handleExplainQuery(config, cm, { connection, query, analyze });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
         return errorResponse(err);
@@ -304,20 +320,36 @@ async function main() {
 
   const getSampleHandle = server.tool(
     "get_sample",
-    "Preview rows from a table. Table name is validated against schema to prevent injection.",
+    "Preview rows from a table. Table name is validated against schema to prevent injection. Supports optional WHERE filtering and ORDER BY sorting.",
     {
       connection: z.string().describe("Connection name from config"),
       table: z.string().describe("Table name to sample"),
       limit: z.number().optional().describe("Number of rows to return (default 10)"),
+      where: z
+        .string()
+        .optional()
+        .describe(
+          "WHERE clause condition (without the WHERE keyword). Example: \"status = 'active' AND created_at > '2024-01-01'\"",
+        ),
+      order_by: z
+        .string()
+        .optional()
+        .describe('ORDER BY expression (without the ORDER BY keyword). Example: "created_at DESC"'),
     },
-    async ({ connection, table, limit }) => {
+    async ({ connection, table, limit, where, order_by }) => {
       const startMs = Date.now();
       try {
-        const result = await handleGetSample(config, cm, { connection, table, limit });
+        const result = await handleGetSample(config, cm, {
+          connection,
+          table,
+          limit,
+          where,
+          order_by,
+        });
         void auditLogger.log({
           tool: "get_sample",
           connection,
-          sql: `SELECT * FROM ${table} LIMIT ${limit ?? 10}`,
+          sql: `SELECT * FROM ${table}${where ? ` WHERE ${where}` : ""}${order_by ? ` ORDER BY ${order_by}` : ""} LIMIT ${limit ?? 10}`,
           params: [],
           durationMs: Date.now() - startMs,
           rows: result.row_count,
@@ -398,7 +430,7 @@ async function main() {
 
   server.tool(
     "get_indexes",
-    "List indexes across the database or for a specific table. Shows index name, columns, and uniqueness.",
+    "List indexes across the database or for a specific table. Shows index name, columns, uniqueness, index type (btree/hash/gin/etc.), and partial index filter expressions.",
     {
       connection: z.string().describe("Connection name from config"),
       table: z.string().optional().describe("Filter to indexes on this table"),
@@ -432,11 +464,11 @@ async function main() {
 
   hintManager.registerTool(
     executeSqlHandle,
-    "Execute a SQL query. Permission level of the connection determines what's allowed (read-only, read-write, admin). Supports parameterized queries.",
+    "Execute a SQL query. Permission level of the connection determines what's allowed (read-only, read-write, admin). Supports parameterized queries and pagination via limit/offset.",
   );
   hintManager.registerTool(
     getSampleHandle,
-    "Preview rows from a table. Table name is validated against schema to prevent injection.",
+    "Preview rows from a table. Table name is validated against schema to prevent injection. Supports optional WHERE filtering and ORDER BY sorting.",
   );
   hintManager.registerTool(
     validateQueryHandle,

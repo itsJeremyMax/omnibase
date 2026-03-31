@@ -97,7 +97,7 @@ const mockSchema: SchemaInfo = {
 
 function setup() {
   const backend = {
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: vi.fn().mockResolvedValue({ driver: "" }),
     execute: vi.fn(),
     getSchema: vi.fn().mockResolvedValue(mockSchema),
     ping: vi.fn(),

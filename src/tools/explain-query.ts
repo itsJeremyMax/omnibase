@@ -5,15 +5,15 @@ import { getConnection } from "../config.js";
 export async function handleExplainQuery(
   config: OmnibaseConfig,
   cm: ConnectionManager,
-  args: { connection: string; query: string },
+  args: { connection: string; query: string; analyze?: boolean },
 ) {
   const connConfig = getConnection(config, args.connection);
 
   // The sidecar handles dialect-specific explain:
   // - SQLite: EXPLAIN QUERY PLAN
-  // - PostgreSQL/MySQL: EXPLAIN
-  // - SQL Server: SET SHOWPLAN_TEXT ON + query + OFF
-  const result = await cm.explainQuery(connConfig, args.query);
+  // - PostgreSQL/MySQL: EXPLAIN (or EXPLAIN ANALYZE when analyze=true)
+  // - SQL Server: SET SHOWPLAN_TEXT ON + query + OFF (or SET STATISTICS PROFILE ON when analyze=true)
+  const result = await cm.explainQuery(connConfig, args.query, args.analyze);
 
   const summary = summarizeExplainOutput(result.columns, result.rows);
 

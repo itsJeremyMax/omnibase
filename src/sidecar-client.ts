@@ -87,8 +87,9 @@ export class SidecarClient implements DatabaseBackend {
     await this.start();
   }
 
-  async connect(id: string, dsn: string): Promise<void> {
-    await this.send("connect", { id, dsn });
+  async connect(id: string, dsn: string): Promise<{ driver: string }> {
+    const result = (await this.send("connect", { id, dsn })) as { ok: boolean; driver?: string };
+    return { driver: result.driver ?? "" };
   }
 
   async execute(
@@ -151,6 +152,8 @@ export class SidecarClient implements DatabaseBackend {
             name: i.name as string,
             columns: (i.columns as string[]) ?? [],
             unique: (i.unique as boolean) ?? false,
+            type: (i.type as string) ?? "",
+            filter: (i.filter as string | null) ?? null,
           }),
         ),
         foreignKeys: ((t.foreign_keys as Record<string, unknown>[] | null) ?? []).map(
@@ -167,8 +170,8 @@ export class SidecarClient implements DatabaseBackend {
     };
   }
 
-  async explainQuery(id: string, query: string): Promise<QueryResult> {
-    const result = (await this.send("explain", { id, query })) as {
+  async explainQuery(id: string, query: string, analyze?: boolean): Promise<QueryResult> {
+    const result = (await this.send("explain", { id, query, analyze: analyze ?? false })) as {
       columns: string[];
       rows: unknown[][];
       row_count: number;

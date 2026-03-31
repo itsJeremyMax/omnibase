@@ -153,7 +153,7 @@ export function checkSqlSecurity(
 export async function handleExecuteSql(
   config: OmnibaseConfig,
   cm: ConnectionManager,
-  args: { connection: string; query: string; params?: unknown[] },
+  args: { connection: string; query: string; params?: unknown[]; limit?: number; offset?: number },
   auditLogger?: AuditLogger,
 ) {
   const startMs = Date.now();
@@ -208,7 +208,13 @@ export async function handleExecuteSql(
       cm.invalidateSchemaCache(connConfig.name);
     }
 
-    const result = await cm.execute(connConfig, args.query, args.params);
+    const effectiveLimit = args.limit ?? connConfig.maxRows;
+    const offset = args.offset ?? 0;
+    const fetchRows = offset + effectiveLimit;
+
+    const result = await cm.execute(connConfig, args.query, args.params, {
+      maxRows: fetchRows,
+    });
     void auditLogger?.log({
       tool: "execute_sql",
       connection: connConfig.name,
@@ -218,7 +224,20 @@ export async function handleExecuteSql(
       rows: result.rowCount,
       status: "ok",
     });
-    return formatQueryResult(result, connConfig.maxRows, connConfig.maxValueLength);
+
+    // Apply offset: skip the first `offset` rows, then cap at effectiveLimit
+    if (offset > 0) {
+      result.rows = result.rows.slice(offset, offset + effectiveLimit);
+      result.rowCount = result.rows.length;
+    }
+
+    const formatted = formatQueryResult(result, effectiveLimit, connConfig.maxValueLength);
+
+    if (offset > 0) {
+      formatted.page_offset = offset;
+    }
+
+    return formatted;
   } catch (err) {
     void auditLogger?.log({
       tool: "execute_sql",

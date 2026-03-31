@@ -47,6 +47,8 @@ export function formatSchemaResult(schema: SchemaInfo, detailed: boolean): { tab
           name: i.name,
           columns: i.columns,
           unique: i.unique,
+          type: i.type,
+          ...(i.filter != null ? { filter: i.filter } : {}),
         })),
         foreign_keys: (t.foreignKeys ?? []).map((fk) => ({
           column: fk.column,

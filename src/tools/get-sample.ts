@@ -9,7 +9,13 @@ import { getDialect, selectWithLimit } from "../sql-dialect.js";
 export async function handleGetSample(
   config: OmnibaseConfig,
   cm: ConnectionManager,
-  args: { connection: string; table: string; limit?: number },
+  args: {
+    connection: string;
+    table: string;
+    limit?: number;
+    where?: string;
+    order_by?: string;
+  },
 ) {
   const connConfig = getConnection(config, args.connection);
 
@@ -28,7 +34,10 @@ export async function handleGetSample(
   }
   const limit = args.limit ?? 10;
   const dialect = getDialect(connConfig);
-  const query = selectWithLimit("*", validTable.name, limit, dialect);
+  const query = selectWithLimit("*", validTable.name, limit, dialect, {
+    where: args.where,
+    orderBy: args.order_by,
+  });
   const result = await cm.execute(connConfig, query);
   return formatQueryResult(result, limit, connConfig.maxValueLength);
 }

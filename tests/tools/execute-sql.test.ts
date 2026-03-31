@@ -28,7 +28,7 @@ function makeConfig(): OmnibaseConfig {
 
 function makeMockBackend(): DatabaseBackend {
   return {
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: vi.fn().mockResolvedValue({ driver: "" }),
     execute: vi.fn().mockResolvedValue({
       columns: ["id"],
       rows: [[1]],
@@ -91,6 +91,94 @@ describe("handleExecuteSql", () => {
         query: "SELECT 1",
       }),
     ).rejects.toThrow("Unknown connection");
+  });
+
+  it("respects limit param to override maxRows", async () => {
+    const backend = makeMockBackend();
+    const cm = new ConnectionManager(backend);
+    const config = makeConfig();
+
+    await handleExecuteSql(config, cm, {
+      connection: "readwrite",
+      query: "SELECT * FROM users",
+      limit: 2,
+    });
+    // limit=2 should be passed as maxRows in the execute options
+    expect(backend.execute).toHaveBeenCalledWith(
+      "readwrite",
+      "SELECT * FROM users",
+      undefined,
+      expect.objectContaining({ maxRows: 2 }),
+    );
+  });
+
+  it("applies offset by skipping rows", async () => {
+    const backend = makeMockBackend();
+    (backend.execute as ReturnType<typeof vi.fn>).mockResolvedValue({
+      columns: ["id"],
+      rows: [[1], [2], [3], [4], [5]],
+      rowCount: 5,
+      hasMore: false,
+    });
+    const cm = new ConnectionManager(backend);
+    const config = makeConfig();
+
+    const result = await handleExecuteSql(config, cm, {
+      connection: "readwrite",
+      query: "SELECT * FROM users",
+      limit: 2,
+      offset: 2,
+    });
+    // Should skip first 2 rows and return next 2
+    expect(result.rows).toEqual([[3], [4]]);
+    expect(result.row_count).toBe(2);
+    expect(result.page_offset).toBe(2);
+  });
+
+  it("audit log receives pre-slice row count when offset is used", async () => {
+    const backend = makeMockBackend();
+    (backend.execute as ReturnType<typeof vi.fn>).mockResolvedValue({
+      columns: ["id"],
+      rows: [[1], [2], [3], [4], [5]],
+      rowCount: 5,
+      hasMore: false,
+    });
+    const cm = new ConnectionManager(backend);
+    const config = makeConfig();
+    const mockAuditLogger = { log: vi.fn() };
+
+    const result = await handleExecuteSql(
+      config,
+      cm,
+      { connection: "readwrite", query: "SELECT * FROM users", limit: 2, offset: 2 },
+      mockAuditLogger as any,
+    );
+    // Returned result should have 2 rows (after slicing)
+    expect(result.row_count).toBe(2);
+    // Audit log should have the pre-slice count (5 rows fetched)
+    expect(mockAuditLogger.log).toHaveBeenCalledWith(
+      expect.objectContaining({ rows: 5, status: "ok" }),
+    );
+  });
+
+  it("fetches offset + limit rows from backend", async () => {
+    const backend = makeMockBackend();
+    const cm = new ConnectionManager(backend);
+    const config = makeConfig();
+
+    await handleExecuteSql(config, cm, {
+      connection: "readwrite",
+      query: "SELECT * FROM users",
+      limit: 10,
+      offset: 20,
+    });
+    // Should fetch 30 rows (20 + 10) from backend
+    expect(backend.execute).toHaveBeenCalledWith(
+      "readwrite",
+      "SELECT * FROM users",
+      undefined,
+      expect.objectContaining({ maxRows: 30 }),
+    );
   });
 });
 

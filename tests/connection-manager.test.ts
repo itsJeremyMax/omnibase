@@ -4,7 +4,7 @@ import type { DatabaseBackend, ConnectionConfig, SchemaInfo, QueryResult } from 
 
 function createMockBackend(): DatabaseBackend {
   return {
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: vi.fn().mockResolvedValue({ driver: "" }),
     execute: vi.fn().mockResolvedValue({
       columns: ["id"],
       rows: [[1]],

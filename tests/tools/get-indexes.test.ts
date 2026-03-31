@@ -19,7 +19,15 @@ const mockSchema: SchemaInfo = {
         },
       ],
       primaryKey: ["id"],
-      indexes: [{ name: "idx_users_email", columns: ["email"], unique: true }],
+      indexes: [
+        {
+          name: "idx_users_email",
+          columns: ["email"],
+          unique: true,
+          type: "btree",
+          filter: null,
+        },
+      ],
       foreignKeys: [],
       rowCountEstimate: 10,
       exactCount: false,
@@ -40,8 +48,20 @@ const mockSchema: SchemaInfo = {
       ],
       primaryKey: ["id"],
       indexes: [
-        { name: "idx_posts_user_id", columns: ["user_id"], unique: false },
-        { name: "idx_posts_created", columns: ["created_at"], unique: false },
+        {
+          name: "idx_posts_user_id",
+          columns: ["user_id"],
+          unique: false,
+          type: "btree",
+          filter: null,
+        },
+        {
+          name: "idx_posts_active",
+          columns: ["created_at"],
+          unique: false,
+          type: "btree",
+          filter: "status = 'active'",
+        },
       ],
       foreignKeys: [],
       rowCountEstimate: 20,
@@ -53,9 +73,11 @@ const mockSchema: SchemaInfo = {
 
 function setup() {
   const backend = {
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: vi.fn().mockResolvedValue({ driver: "" }),
     execute: vi.fn(),
     getSchema: vi.fn().mockResolvedValue(mockSchema),
+    explainQuery: vi.fn(),
+    validateQuery: vi.fn(),
     ping: vi.fn(),
     disconnect: vi.fn(),
   };
@@ -76,7 +98,7 @@ function setup() {
 }
 
 describe("handleGetIndexes", () => {
-  it("returns all indexes across tables", async () => {
+  it("returns all indexes with type and filter info", async () => {
     const { cm, config } = setup();
     const result = await handleGetIndexes(config, cm, { connection: "test" });
     expect(result).toHaveLength(3);
@@ -85,6 +107,23 @@ describe("handleGetIndexes", () => {
       name: "idx_users_email",
       columns: ["email"],
       unique: true,
+      type: "btree",
+      partial: false,
+    });
+  });
+
+  it("includes partial index info with filter expression", async () => {
+    const { cm, config } = setup();
+    const result = await handleGetIndexes(config, cm, { connection: "test", table: "posts" });
+    const partialIdx = result.find((i: { name: string }) => i.name === "idx_posts_active");
+    expect(partialIdx).toEqual({
+      table: "posts",
+      name: "idx_posts_active",
+      columns: ["created_at"],
+      unique: false,
+      type: "btree",
+      partial: true,
+      filter: "status = 'active'",
     });
   });
 

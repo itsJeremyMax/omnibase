@@ -143,6 +143,8 @@ func GetSchema(cm *ConnectionManager, id string, schemas []string, tables []stri
 						Name:    idx.Name,
 						Columns: columns,
 						Unique:  idx.IsUnique == metadata.YES,
+						Type:    strings.ToLower(idx.Type),
+						Filter:  nil,
 					})
 
 					// Mark primary key columns
@@ -159,6 +161,9 @@ func GetSchema(cm *ConnectionManager, id string, schemas []string, tables []stri
 				}
 			}
 		}
+
+		// Supplement: detect partial indexes for databases that support it
+		supplementPartialIndexes(conn, t.Name, &info)
 
 		// Get foreign keys from constraints
 		if constraintReader, ok := reader.(metadata.ConstraintReader); ok {
@@ -325,6 +330,38 @@ func supplementForeignKeys(conn *Connection, tableName string, info *TableInfo) 
 			ReferencesTable:  refTable,
 			ReferencesColumn: refCol,
 		})
+	}
+}
+
+// supplementPartialIndexes detects partial index WHERE clauses.
+// Uses database-native catalog queries. Currently supports PostgreSQL.
+func supplementPartialIndexes(conn *Connection, tableName string, info *TableInfo) {
+	// PostgreSQL: query pg_indexes + pg_index to find partial index filter expressions
+	query := fmt.Sprintf(`
+		SELECT indexname, pg_get_expr(i.indpred, i.indrelid)
+		FROM pg_indexes pi
+		JOIN pg_class c ON c.relname = pi.indexname
+		JOIN pg_index i ON i.indexrelid = c.oid
+		WHERE pi.tablename = '%s' AND i.indpred IS NOT NULL`, tableName)
+	rows, err := conn.DB.Query(query)
+	if err != nil {
+		return // Not PostgreSQL or query not supported
+	}
+	defer rows.Close()
+
+	filters := make(map[string]string)
+	for rows.Next() {
+		var idxName, filter string
+		if err := rows.Scan(&idxName, &filter); err != nil {
+			return
+		}
+		filters[idxName] = filter
+	}
+
+	for i := range info.Indexes {
+		if filter, ok := filters[info.Indexes[i].Name]; ok {
+			info.Indexes[i].Filter = &filter
+		}
 	}
 }
 

@@ -327,7 +327,7 @@ describe("buildZodSchema", () => {
 
 function makeMockBackend(): DatabaseBackend {
   return {
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: vi.fn().mockResolvedValue({ driver: "" }),
     execute: vi.fn().mockResolvedValue({
       columns: ["id", "status"],
       rows: [[1, "pending"]],

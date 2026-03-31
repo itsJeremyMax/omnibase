@@ -11,6 +11,7 @@ export class ConnectionManager {
   private connectedIds = new Set<string>();
   private schemaCache = new Map<string, SchemaInfo>();
   private statusMap = new Map<string, ConnectionStatus>();
+  private driverMap = new Map<string, string>();
   private transactionLocks = new Map<string, Promise<void>>();
   private onSchemaFetched?: (connectionName: string, schema: SchemaInfo) => void;
 
@@ -24,13 +25,18 @@ export class ConnectionManager {
     if (this.connectedIds.has(config.name)) return;
 
     try {
-      await this.backend.connect(config.name, config.dsn);
+      const { driver } = await this.backend.connect(config.name, config.dsn);
       this.connectedIds.add(config.name);
       this.statusMap.set(config.name, "connected");
+      this.driverMap.set(config.name, driver);
     } catch (err) {
       this.statusMap.set(config.name, "error");
       throw err;
     }
+  }
+
+  getDriver(connectionName: string): string {
+    return this.driverMap.get(connectionName) ?? "";
   }
 
   async execute(
@@ -79,9 +85,13 @@ export class ConnectionManager {
     return schema;
   }
 
-  async explainQuery(config: ConnectionConfig, query: string): Promise<QueryResult> {
+  async explainQuery(
+    config: ConnectionConfig,
+    query: string,
+    analyze?: boolean,
+  ): Promise<QueryResult> {
     await this.ensureConnected(config);
-    return this.backend.explainQuery(config.name, query);
+    return this.backend.explainQuery(config.name, query, analyze);
   }
 
   async validateQuery(
@@ -109,6 +119,7 @@ export class ConnectionManager {
     await this.backend.disconnect(config.name);
     this.connectedIds.delete(config.name);
     this.schemaCache.delete(config.name);
+    this.driverMap.delete(config.name);
     this.statusMap.set(config.name, "available");
   }
 

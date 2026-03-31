@@ -8,7 +8,7 @@ export function handleListConnections(
 ): ConnectionInfo[] {
   return Object.values(config.connections).map((conn) => ({
     name: conn.name,
-    databaseType: conn.dsn.split(":")[0],
+    databaseType: cm.getDriver(conn.name) || conn.dsn.split(":")[0],
     permissionLevel: conn.permission,
     status: cm.getStatus(conn.name),
   }));

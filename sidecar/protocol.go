@@ -29,6 +29,9 @@ type RPCParams struct {
 	Schemas     []string `json:"schemas,omitempty"`
 	Tables      []string `json:"tables,omitempty"`
 	ExactCounts *bool    `json:"exact_counts,omitempty"`
+
+	// Explain
+	Analyze bool `json:"analyze,omitempty"`
 }
 
 // RPCResponse is a JSON-RPC 2.0 response to the MCP server.
@@ -86,6 +89,8 @@ type IndexInfo struct {
 	Name    string   `json:"name"`
 	Columns []string `json:"columns"`
 	Unique  bool     `json:"unique"`
+	Type    string   `json:"type"`
+	Filter  *string  `json:"filter"`
 }
 
 type ForeignKey struct {
@@ -96,7 +101,8 @@ type ForeignKey struct {
 
 // ConnectResult is the result of a connect request.
 type ConnectResult struct {
-	OK bool `json:"ok"`
+	OK     bool   `json:"ok"`
+	Driver string `json:"driver"`
 }
 
 // PingResult is the result of a ping request.

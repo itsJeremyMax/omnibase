@@ -50,7 +50,7 @@ const mockSchema: SchemaInfo = {
 
 function setup() {
   const backend = {
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: vi.fn().mockResolvedValue({ driver: "" }),
     execute: vi.fn(),
     getSchema: vi.fn().mockResolvedValue(mockSchema),
     ping: vi.fn(),
@@ -86,7 +86,7 @@ describe("handleListTables", () => {
       tables: mockSchema.tables.map((t) => ({ ...t, exactCount: false })),
     };
     const backend = {
-      connect: vi.fn().mockResolvedValue(undefined),
+      connect: vi.fn().mockResolvedValue({ driver: "" }),
       execute: vi.fn(),
       getSchema: vi.fn().mockResolvedValue(estimateSchema),
       ping: vi.fn(),

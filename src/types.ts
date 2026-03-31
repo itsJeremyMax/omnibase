@@ -64,6 +64,8 @@ export interface IndexInfo {
   name: string;
   columns: string[];
   unique: boolean;
+  type: string;
+  filter: string | null;
 }
 
 export interface ForeignKeyInfo {
@@ -116,6 +118,7 @@ export interface FormattedQueryResult {
   truncated_from?: number;
   affected_rows?: number;
   last_insert_id?: number;
+  page_offset?: number;
 }
 
 // --- Query classification ---
@@ -159,7 +162,7 @@ export interface SchemaFilter {
 }
 
 export interface DatabaseBackend {
-  connect(id: string, dsn: string): Promise<void>;
+  connect(id: string, dsn: string): Promise<{ driver: string }>;
   execute(
     id: string,
     query: string,
@@ -167,7 +170,7 @@ export interface DatabaseBackend {
     options?: ExecuteOptions,
   ): Promise<QueryResult>;
   getSchema(id: string, filter?: SchemaFilter): Promise<SchemaInfo>;
-  explainQuery(id: string, query: string): Promise<QueryResult>;
+  explainQuery(id: string, query: string, analyze?: boolean): Promise<QueryResult>;
   validateQuery(id: string, query: string): Promise<{ valid: boolean; error?: string }>;
   ping(id: string): Promise<void>;
   disconnect(id: string): Promise<void>;
