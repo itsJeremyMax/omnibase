@@ -252,6 +252,14 @@ defaults:
   max_rows: 500                 # default max rows returned per query
 ```
 
+### Schema hints
+
+Omnibase embeds table and column names directly in tool descriptions so your AI agent sees the schema without needing to call `get_schema` first. This is enabled by default and updates automatically when a schema is fetched.
+
+```yaml
+schema_hints: true   # embed table/column names in tool descriptions (default: true)
+```
+
 ### Audit logging
 
 Log every query to a local file for debugging and compliance. The `query_history` MCP tool lets agents view their own query history. By default, the last 10,000 entries are retained and older entries are automatically pruned.

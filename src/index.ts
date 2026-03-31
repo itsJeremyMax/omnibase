@@ -27,6 +27,7 @@ import { OmnibaseError } from "./types.js";
 import { validateCustomTools, registerCustomTools, reloadCustomTools } from "./custom-tools.js";
 import { ConfigWatcher } from "./config-watcher.js";
 import { AuditLogger } from "./audit-logger.js";
+import { SchemaHintManager } from "./schema-hint-manager.js";
 
 const STARTER_CONFIG = `# Omnibase configuration
 # All options: https://github.com/itsJeremyMax/omnibase#configuration-reference
@@ -167,6 +168,11 @@ async function main() {
     cm.handleSidecarCrash();
   });
 
+  const hintManager = new SchemaHintManager(config.schemaHints ?? true);
+  cm.setOnSchemaFetched((connectionName, schema) => {
+    hintManager.updateHints(connectionName, schema);
+  });
+
   // Create MCP server
   const server = new McpServer({
     name: "omnibase",
@@ -222,7 +228,7 @@ async function main() {
     },
   );
 
-  server.tool(
+  const executeSqlHandle = server.tool(
     "execute_sql",
     "Execute a SQL query. Permission level of the connection determines what's allowed (read-only, read-write, admin). Supports parameterized queries.",
     {
@@ -248,7 +254,7 @@ async function main() {
     },
   );
 
-  server.tool(
+  const explainQueryHandle = server.tool(
     "explain_query",
     "Show the query execution plan without executing the query. Always allowed regardless of permission level.",
     {
@@ -265,7 +271,7 @@ async function main() {
     },
   );
 
-  server.tool(
+  const getSampleHandle = server.tool(
     "get_sample",
     "Preview rows from a table. Table name is validated against schema to prevent injection.",
     {
@@ -376,7 +382,7 @@ async function main() {
     },
   );
 
-  server.tool(
+  const validateQueryHandle = server.tool(
     "validate_query",
     "Check if a SQL query is syntactically valid and would be allowed by the connection's permission level, without executing it. Note: only checks syntax and permissions, not whether referenced tables/columns exist.",
     {
@@ -391,6 +397,23 @@ async function main() {
         return errorResponse(err);
       }
     },
+  );
+
+  hintManager.registerTool(
+    executeSqlHandle,
+    "Execute a SQL query. Permission level of the connection determines what's allowed (read-only, read-write, admin). Supports parameterized queries.",
+  );
+  hintManager.registerTool(
+    getSampleHandle,
+    "Preview rows from a table. Table name is validated against schema to prevent injection.",
+  );
+  hintManager.registerTool(
+    validateQueryHandle,
+    "Check if a SQL query is syntactically valid and would be allowed by the connection's permission level, without executing it. Note: only checks syntax and permissions, not whether referenced tables/columns exist.",
+  );
+  hintManager.registerTool(
+    explainQueryHandle,
+    "Show the query execution plan without executing the query. Always allowed regardless of permission level.",
   );
 
   server.tool(

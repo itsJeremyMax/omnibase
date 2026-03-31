@@ -65,6 +65,7 @@ interface RawConfig {
     format?: string;
     max_entries?: number;
   };
+  schema_hints?: boolean;
 }
 
 const DEFAULT_PERMISSION: PermissionLevel = "read-only";
@@ -172,7 +173,7 @@ export function parseConfig(yamlContent: string, configFilePath?: string): Omnib
     };
   }
 
-  return { connections, defaults, tools, audit };
+  return { connections, defaults, tools, audit, schemaHints: raw.schema_hints ?? true };
 }
 
 export function getConnection(config: OmnibaseConfig, name: string): ConnectionConfig {

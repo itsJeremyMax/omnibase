@@ -35,6 +35,7 @@ export interface OmnibaseConfig {
   };
   tools?: Record<string, CustomToolConfig>;
   audit?: AuditConfig;
+  schemaHints?: boolean;
 }
 
 // --- Connection state ---

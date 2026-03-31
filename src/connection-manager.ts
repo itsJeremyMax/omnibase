@@ -12,8 +12,13 @@ export class ConnectionManager {
   private schemaCache = new Map<string, SchemaInfo>();
   private statusMap = new Map<string, ConnectionStatus>();
   private transactionLocks = new Map<string, Promise<void>>();
+  private onSchemaFetched?: (connectionName: string, schema: SchemaInfo) => void;
 
   constructor(private backend: DatabaseBackend) {}
+
+  setOnSchemaFetched(cb: (connectionName: string, schema: SchemaInfo) => void): void {
+    this.onSchemaFetched = cb;
+  }
 
   async ensureConnected(config: ConnectionConfig): Promise<void> {
     if (this.connectedIds.has(config.name)) return;
@@ -70,6 +75,7 @@ export class ConnectionManager {
     );
 
     this.schemaCache.set(config.name, schema);
+    this.onSchemaFetched?.(config.name, schema);
     return schema;
   }
 
