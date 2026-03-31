@@ -42,35 +42,63 @@ function handleInit(): void {
   const configPath = resolve(process.cwd(), "omnibase.config.yaml");
   if (existsSync(configPath)) {
     console.log(`omnibase.config.yaml already exists at ${configPath}`);
-    process.exit(0);
+    return;
   }
   writeFileSync(configPath, STARTER_CONFIG);
   console.log(`Created omnibase.config.yaml`);
   console.log(`\nNext steps:`);
   console.log(`  1. Edit omnibase.config.yaml with your database connection`);
   console.log(`  2. Add to Claude Code: claude mcp add omnibase -- npx -y omnibase-mcp`);
-  process.exit(0);
 }
 
-// Handle CLI commands — must prevent main() from running
+async function maybeShowUpdateNotice(): Promise<void> {
+  try {
+    const { getUpdateNotice } = await import("./update-checker.js");
+    const notice = await getUpdateNotice(VERSION);
+    if (notice) {
+      process.stderr.write(`\n  ${notice}\n`);
+    }
+  } catch {
+    // Never let update check break the CLI
+  }
+}
+
+// Handle CLI commands -- must prevent main() from running
 const cliCommand = process.argv[2];
-if (cliCommand === "init") {
-  handleInit();
-} else if (cliCommand === "tools") {
-  handleToolsCommand();
-} else if (cliCommand === "status") {
-  handleStatusCommand();
-} else if (cliCommand === "audit") {
-  handleAuditCommand();
+if (cliCommand) {
+  (async () => {
+    if (cliCommand === "init") {
+      handleInit();
+    } else if (cliCommand === "tools") {
+      await handleToolsCommand();
+    } else if (cliCommand === "status") {
+      await handleStatusCommand();
+    } else if (cliCommand === "audit") {
+      await handleAuditCommand();
+    } else if (cliCommand === "upgrade") {
+      await handleUpgradeCommand();
+    } else if (cliCommand === "--version" || cliCommand === "-V") {
+      console.log(`omnibase-mcp v${VERSION}`);
+      process.exit(0);
+    } else {
+      // Unknown command -- fall through to MCP server
+      main().catch((err) => {
+        console.error("Failed to start omnibase:", err);
+        process.exit(1);
+      });
+      return;
+    }
+    await maybeShowUpdateNotice();
+    process.exit(0);
+  })();
 }
 
-async function handleStatusCommand(): Promise<never> {
+async function handleStatusCommand(): Promise<void> {
   const { runStatus } = await import("./cli/status.js");
   await runStatus();
-  process.exit(0);
 }
 
-async function handleAuditCommand(): Promise<never> {
+async function handleAuditCommand(): Promise<void> {
   const { audit } = await import("./cli/audit.js");
   const subcommand = process.argv[3];
   if (subcommand === "tail") {
@@ -87,10 +115,9 @@ async function handleAuditCommand(): Promise<never> {
     console.error("  search <query>  Search log entries by keyword");
     console.error("  clear           Clear the audit log");
   }
-  process.exit(0);
 }
 
-async function handleToolsCommand(): Promise<never> {
+async function handleToolsCommand(): Promise<void> {
   const { tools } = await import("./cli/tools.js");
   const subcommand = process.argv[3];
   if (subcommand === "list") {
@@ -113,7 +140,11 @@ async function handleToolsCommand(): Promise<never> {
     console.error("  validate  Validate custom tool definitions");
     console.error("  test      Dry-run a custom tool with sample arguments");
   }
-  process.exit(0);
+}
+
+async function handleUpgradeCommand(): Promise<void> {
+  const { handleUpgradeCommand: run } = await import("./cli/upgrade.js");
+  await run();
 }
 
 async function main() {

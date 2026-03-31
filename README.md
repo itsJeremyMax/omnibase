@@ -218,7 +218,14 @@ npx omnibase-mcp status           # ping all connections, show health dashboard
 npx omnibase-mcp audit tail       # live tail the query audit log
 npx omnibase-mcp audit search <q> # search audit log by keyword
 npx omnibase-mcp audit clear      # clear the audit log
+npx omnibase-mcp upgrade          # upgrade to latest version
+npx omnibase-mcp upgrade --dry-run          # check for updates and show changelog
+npx omnibase-mcp upgrade --version 0.1.20   # switch to a specific version
+npx omnibase-mcp upgrade --allow-major      # allow major version changes
+npx omnibase-mcp --version        # print current version
 ```
+
+Updates to a new major version (or downgrades across a major version boundary) require the `--allow-major` flag. The CLI also checks for updates in the background and shows a notice after commands when a newer version is available. Set `NO_UPDATE_NOTIFIER=1` to suppress this.
 
 ## What Makes This Different
 
