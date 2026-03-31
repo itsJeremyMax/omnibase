@@ -184,10 +184,16 @@ export interface CustomToolParameter {
   values?: string[]; // required if type is "enum"
 }
 
+export interface CustomToolStep {
+  sql: string;
+  return?: boolean;
+}
+
 export interface CustomToolConfig {
   connection: string;
   description?: string;
-  sql: string;
+  sql?: string;
+  steps?: CustomToolStep[];
   permission?: PermissionLevel;
   maxRows?: number;
   timeout?: number;

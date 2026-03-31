@@ -1,5 +1,5 @@
 // src/tools/execute-sql.ts
-import type { OmnibaseConfig } from "../types.js";
+import type { OmnibaseConfig, ConnectionConfig } from "../types.js";
 import type { ConnectionManager } from "../connection-manager.js";
 import type { AuditLogger } from "../audit-logger.js";
 import { classifyQuery, isMultiStatement } from "../query-analyzer.js";
@@ -90,6 +90,66 @@ const SAFE_PRAGMAS = new Set([
   "ENCODING",
 ]);
 
+/**
+ * Check a SQL string against security rules (blocked statements, dangerous functions,
+ * sensitive tables, outfile/dumpfile, unsafe pragmas). Throws OmnibaseError on violation.
+ */
+export function checkSqlSecurity(
+  sql: string,
+  connConfig: Pick<ConnectionConfig, "name" | "allowAllPragmas">,
+): void {
+  const normalized = sql.trim().toUpperCase();
+  const firstWord = normalized.split(/\s+/)[0]!;
+
+  // Block dangerous statement types
+  if (BLOCKED_STATEMENTS.has(firstWord)) {
+    throw new OmnibaseError(`${firstWord} statements are not allowed`, "FORBIDDEN_OPERATION");
+  }
+
+  // Block dangerous PRAGMAs (allow safe read-only ones, or all if configured)
+  if (firstWord === "PRAGMA" && !connConfig.allowAllPragmas) {
+    const pragmaName = normalized.replace(/^PRAGMA\s+/i, "").split(/\s*[=(]/)[0];
+    if (!SAFE_PRAGMAS.has(pragmaName)) {
+      throw new OmnibaseError(
+        `PRAGMA ${pragmaName.toLowerCase()} is not allowed. Only read-only diagnostic PRAGMAs are permitted. Set allow_all_pragmas: true in the connection config to override.`,
+        "FORBIDDEN_OPERATION",
+      );
+    }
+  }
+
+  // Block dangerous functions (filesystem access, credential exposure)
+  for (const fn of DANGEROUS_FUNCTIONS) {
+    if (normalized.includes(fn + "(") || normalized.includes(fn + " (")) {
+      throw new OmnibaseError(
+        `Function ${fn.toLowerCase()}() is not allowed — it provides dangerous server access`,
+        "FORBIDDEN_OPERATION",
+      );
+    }
+  }
+
+  // Block queries against sensitive system catalog tables.
+  for (const table of SENSITIVE_TABLES) {
+    const escaped = table.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = table.includes(".")
+      ? new RegExp(`(?:FROM|JOIN)\\s+${escaped}\\b`, "i")
+      : new RegExp(`(?:FROM|JOIN)\\s+(?:\\w+\\.)?${escaped}\\b`, "i");
+    if (pattern.test(normalized)) {
+      throw new OmnibaseError(
+        `Access to ${table.toLowerCase()} is not allowed — it contains sensitive credential data`,
+        "FORBIDDEN_OPERATION",
+      );
+    }
+  }
+
+  // Block MySQL INTO OUTFILE/DUMPFILE (appears mid-query in SELECT ... INTO OUTFILE)
+  if (normalized.includes("INTO OUTFILE") || normalized.includes("INTO DUMPFILE")) {
+    throw new OmnibaseError(
+      "INTO OUTFILE/DUMPFILE is not allowed — it writes to the server filesystem",
+      "FORBIDDEN_OPERATION",
+    );
+  }
+}
+
 export async function handleExecuteSql(
   config: OmnibaseConfig,
   cm: ConnectionManager,
@@ -111,56 +171,7 @@ export async function handleExecuteSql(
       );
     }
 
-    const normalized = args.query.trim().toUpperCase();
-    const firstWord = normalized.split(/\s+/)[0];
-
-    // Block dangerous statement types
-    if (BLOCKED_STATEMENTS.has(firstWord!)) {
-      throw new OmnibaseError(`${firstWord} statements are not allowed`, "FORBIDDEN_OPERATION");
-    }
-
-    // Block dangerous PRAGMAs (allow safe read-only ones, or all if configured)
-    if (firstWord === "PRAGMA" && !connConfig.allowAllPragmas) {
-      const pragmaName = normalized.replace(/^PRAGMA\s+/i, "").split(/\s*[=(]/)[0];
-      if (!SAFE_PRAGMAS.has(pragmaName)) {
-        throw new OmnibaseError(
-          `PRAGMA ${pragmaName.toLowerCase()} is not allowed. Only read-only diagnostic PRAGMAs are permitted. Set allow_all_pragmas: true in the connection config to override.`,
-          "FORBIDDEN_OPERATION",
-        );
-      }
-    }
-
-    // Block dangerous functions (filesystem access, credential exposure)
-    for (const fn of DANGEROUS_FUNCTIONS) {
-      if (normalized.includes(fn + "(") || normalized.includes(fn + " (")) {
-        throw new OmnibaseError(
-          `Function ${fn.toLowerCase()}() is not allowed — it provides dangerous server access`,
-          "FORBIDDEN_OPERATION",
-        );
-      }
-    }
-
-    // Block queries against sensitive system catalog tables.
-    for (const table of SENSITIVE_TABLES) {
-      const escaped = table.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = table.includes(".")
-        ? new RegExp(`(?:FROM|JOIN)\\s+${escaped}\\b`, "i")
-        : new RegExp(`(?:FROM|JOIN)\\s+(?:\\w+\\.)?${escaped}\\b`, "i");
-      if (pattern.test(normalized)) {
-        throw new OmnibaseError(
-          `Access to ${table.toLowerCase()} is not allowed — it contains sensitive credential data`,
-          "FORBIDDEN_OPERATION",
-        );
-      }
-    }
-
-    // Block MySQL INTO OUTFILE/DUMPFILE (appears mid-query in SELECT ... INTO OUTFILE)
-    if (normalized.includes("INTO OUTFILE") || normalized.includes("INTO DUMPFILE")) {
-      throw new OmnibaseError(
-        "INTO OUTFILE/DUMPFILE is not allowed — it writes to the server filesystem",
-        "FORBIDDEN_OPERATION",
-      );
-    }
+    checkSqlSecurity(args.query, connConfig);
 
     const category = classifyQuery(args.query);
     enforcePermission(connConfig.name, connConfig.permission, category);
@@ -172,7 +183,7 @@ export async function handleExecuteSql(
       connConfig.readOnlyTables.length > 0
     ) {
       const protectedTables = new Set(connConfig.readOnlyTables.map((t) => t.toLowerCase()));
-      const upper = normalized;
+      const upper = args.query.trim().toUpperCase();
       for (const table of protectedTables) {
         const tableUpper = table.toUpperCase();
         if (

@@ -3,6 +3,7 @@ import type {
   OmnibaseConfig,
   CustomToolParameter,
   CustomToolConfig,
+  QueryResult,
   PermissionLevel,
 } from "./types.js";
 import { OmnibaseError } from "./types.js";
@@ -10,6 +11,7 @@ import { getConnection } from "./config.js";
 import { classifyQuery, isMultiStatement } from "./query-analyzer.js";
 import { enforcePermission } from "./permission-enforcer.js";
 import { formatQueryResult } from "./output-formatter.js";
+import { checkSqlSecurity } from "./tools/execute-sql.js";
 import type { ConnectionManager } from "./connection-manager.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AuditLogger } from "./audit-logger.js";
@@ -111,8 +113,38 @@ export function validateCustomTools(config: OmnibaseConfig): void {
       );
     }
 
+    // Validate sql/steps mutual exclusivity
+    if (tool.sql != null && tool.steps != null) {
+      throw new OmnibaseError(
+        `Custom tool '${name}': cannot define both 'sql' and 'steps'`,
+        "INVALID_TOOL_CONFIG",
+      );
+    }
+    if (tool.sql == null && tool.steps == null) {
+      throw new OmnibaseError(
+        `Custom tool '${name}': must define either 'sql' or 'steps'`,
+        "INVALID_TOOL_CONFIG",
+      );
+    }
+
+    if (tool.steps != null) {
+      if (tool.steps.length === 0) {
+        throw new OmnibaseError(
+          `Custom tool '${name}': 'steps' must have at least one step`,
+          "INVALID_TOOL_CONFIG",
+        );
+      }
+      if (tool.steps.filter((s) => s.return).length > 1) {
+        throw new OmnibaseError(
+          `Custom tool '${name}': at most one step may have 'return: true'`,
+          "INVALID_TOOL_CONFIG",
+        );
+      }
+    }
+
     // Validate parameters
-    const placeholders = extractPlaceholders(tool.sql);
+    const allSql = tool.sql != null ? [tool.sql] : tool.steps!.map((s) => s.sql);
+    const placeholders = [...new Set(allSql.flatMap((s) => extractPlaceholders(s)))];
     const definedParams = new Set(Object.keys(tool.parameters ?? {}));
 
     // Every placeholder must have a parameter definition
@@ -325,6 +357,123 @@ export function reloadCustomTools(
 }
 
 /**
+ * Execute multi-step custom tool within a transaction.
+ */
+async function executeCustomToolSteps(
+  config: OmnibaseConfig,
+  cm: ConnectionManager,
+  toolName: string,
+  tool: CustomToolConfig,
+  args: Record<string, unknown>,
+  auditLogger?: AuditLogger,
+) {
+  const connConfig = getConnection(config, tool.connection);
+  const paramDefs = tool.parameters ?? {};
+  const effectivePermission = tool.permission ?? connConfig.permission;
+
+  // Pre-validate all steps: substitute params, security check, classify
+  const categoryRank: Record<string, number> = { read: 0, write: 1, ddl: 2 };
+  let maxCategory: "read" | "write" | "ddl" = "read";
+  const substituted: { sql: string; values: unknown[] }[] = [];
+
+  for (const step of tool.steps!) {
+    const { sql, values } = substituteParameters(step.sql, args, paramDefs);
+    checkSqlSecurity(sql, connConfig);
+    const category = classifyQuery(sql);
+    if (categoryRank[category]! > categoryRank[maxCategory]!) {
+      maxCategory = category;
+    }
+    substituted.push({ sql, values });
+  }
+
+  enforcePermission(connConfig.name, effectivePermission, maxCategory);
+
+  const execOpts = {
+    maxRows: tool.maxRows ?? connConfig.maxRows,
+    timeoutMs: tool.timeout ?? connConfig.timeout,
+  };
+
+  const startMs = Date.now();
+
+  // Acquire a per-connection lock to prevent concurrent transactions.
+  // Most databases (especially SQLite) don't support nested transactions,
+  // so concurrent multi-step tool calls on the same connection must be serialized.
+  const releaseLock = await cm.acquireTransactionLock(connConfig.name);
+
+  await cm.execute(connConfig, "BEGIN", [], execOpts);
+
+  let returnResult: QueryResult | null = null;
+  let lastResult: QueryResult | null = null;
+
+  // Track temp tables created during execution for cleanup.
+  // Temp tables are connection-scoped (not transaction-scoped) in most databases,
+  // so without cleanup, re-running the same tool would fail with "table already exists".
+  const tempTablesCreated: string[] = [];
+
+  try {
+    for (let i = 0; i < tool.steps!.length; i++) {
+      const { sql, values } = substituted[i]!;
+      const stepResult = await cm.execute(connConfig, sql, values, execOpts);
+      lastResult = stepResult;
+      if (tool.steps![i]!.return === true) {
+        returnResult = stepResult;
+      }
+      const category = classifyQuery(sql);
+      if (category === "ddl" || category === "write") {
+        cm.invalidateSchemaCache(connConfig.name);
+      }
+      // Track temp tables for cleanup
+      const tempMatch = sql.match(
+        /CREATE\s+TEMP(?:ORARY)?\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\S+)/i,
+      );
+      if (tempMatch) {
+        tempTablesCreated.push(tempMatch[1]!);
+      }
+    }
+    await cm.execute(connConfig, "COMMIT", [], execOpts);
+  } catch (err) {
+    try {
+      await cm.execute(connConfig, "ROLLBACK", [], execOpts);
+    } catch {
+      // Ignore rollback errors
+    }
+    void auditLogger?.log({
+      tool: `custom_${toolName}`,
+      connection: connConfig.name,
+      sql: tool.steps!.map((s) => s.sql).join("; "),
+      params: [],
+      durationMs: Date.now() - startMs,
+      rows: 0,
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  } finally {
+    // Clean up temp tables so the tool is idempotent across invocations
+    for (const table of tempTablesCreated) {
+      try {
+        await cm.execute(connConfig, `DROP TABLE IF EXISTS ${table}`, [], execOpts);
+      } catch {
+        // Best effort cleanup
+      }
+    }
+    releaseLock();
+  }
+
+  const result = returnResult ?? lastResult!;
+  void auditLogger?.log({
+    tool: `custom_${toolName}`,
+    connection: connConfig.name,
+    sql: tool.steps!.map((s) => s.sql).join("; "),
+    params: [],
+    durationMs: Date.now() - startMs,
+    rows: result.rowCount,
+    status: "ok",
+  });
+  return formatQueryResult(result, tool.maxRows ?? connConfig.maxRows, connConfig.maxValueLength);
+}
+
+/**
  * Execute a custom tool: substitute parameters, run through security pipeline, execute.
  */
 async function executeCustomTool(
@@ -335,11 +484,15 @@ async function executeCustomTool(
   args: Record<string, unknown>,
   auditLogger?: AuditLogger,
 ) {
+  if (tool.steps != null) {
+    return executeCustomToolSteps(config, cm, _toolName, tool, args, auditLogger);
+  }
+
   const connConfig = getConnection(config, tool.connection);
 
   // Substitute parameters into SQL template
   const paramDefs = tool.parameters ?? {};
-  const { sql, values } = substituteParameters(tool.sql, args, paramDefs);
+  const { sql, values } = substituteParameters(tool.sql!, args, paramDefs);
 
   // Security checks: reuse the same pipeline as execute_sql
   if (isMultiStatement(sql)) {
@@ -348,6 +501,8 @@ async function executeCustomTool(
       "MULTI_STATEMENT",
     );
   }
+
+  checkSqlSecurity(sql, connConfig);
 
   const category = classifyQuery(sql);
 
@@ -392,4 +547,17 @@ async function executeCustomTool(
   });
 
   return formatQueryResult(result, tool.maxRows ?? connConfig.maxRows, connConfig.maxValueLength);
+}
+
+/**
+ * Export for testing: execute a custom tool directly.
+ */
+export async function executeCustomToolForTest(
+  config: OmnibaseConfig,
+  cm: ConnectionManager,
+  toolName: string,
+  tool: CustomToolConfig,
+  args: Record<string, unknown>,
+) {
+  return executeCustomTool(config, cm, toolName, tool, args);
 }

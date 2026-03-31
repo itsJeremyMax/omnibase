@@ -104,6 +104,58 @@ describe("ConnectionManager", () => {
     expect(manager.getStatus("test")).toBe("connected");
   });
 
+  describe("acquireTransactionLock", () => {
+    it("acquires and releases a lock", async () => {
+      const release = await manager.acquireTransactionLock("test");
+      expect(typeof release).toBe("function");
+      release();
+    });
+
+    it("serializes concurrent lock acquisitions", async () => {
+      const order: string[] = [];
+
+      const release1 = await manager.acquireTransactionLock("test");
+      order.push("acquired-1");
+
+      // Second acquisition should wait
+      const lock2Promise = manager.acquireTransactionLock("test").then((release) => {
+        order.push("acquired-2");
+        return release;
+      });
+
+      // Give the event loop a chance to process
+      await new Promise((r) => setTimeout(r, 10));
+      expect(order).toEqual(["acquired-1"]); // lock2 should still be waiting
+
+      release1();
+      order.push("released-1");
+
+      const release2 = await lock2Promise;
+      release2();
+      order.push("released-2");
+
+      expect(order).toEqual(["acquired-1", "released-1", "acquired-2", "released-2"]);
+    });
+
+    it("allows locks on different connections concurrently", async () => {
+      const release1 = await manager.acquireTransactionLock("conn-a");
+      const release2 = await manager.acquireTransactionLock("conn-b");
+
+      // Both acquired without blocking
+      release1();
+      release2();
+    });
+
+    it("releases lock even if work throws", async () => {
+      const release1 = await manager.acquireTransactionLock("test");
+      release1(); // simulate finally block
+
+      // Should be able to acquire again immediately
+      const release2 = await manager.acquireTransactionLock("test");
+      release2();
+    });
+  });
+
   it("applies schema filter when fetching", async () => {
     const configWithFilter: ConnectionConfig = {
       ...testConfig,

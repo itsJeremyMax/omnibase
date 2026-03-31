@@ -11,6 +11,7 @@ export class ConnectionManager {
   private connectedIds = new Set<string>();
   private schemaCache = new Map<string, SchemaInfo>();
   private statusMap = new Map<string, ConnectionStatus>();
+  private transactionLocks = new Map<string, Promise<void>>();
 
   constructor(private backend: DatabaseBackend) {}
 
@@ -125,6 +126,29 @@ export class ConnectionManager {
         }
       }
     }
+  }
+
+  /**
+   * Acquire an exclusive lock for transactional operations on a connection.
+   * Returns a release function that must be called when the transaction is done.
+   * Concurrent callers wait until the lock is released.
+   */
+  async acquireTransactionLock(connectionName: string): Promise<() => void> {
+    // Wait for any existing lock to be released
+    while (this.transactionLocks.has(connectionName)) {
+      await this.transactionLocks.get(connectionName);
+    }
+
+    let release!: () => void;
+    const lockPromise = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.transactionLocks.set(connectionName, lockPromise);
+
+    return () => {
+      this.transactionLocks.delete(connectionName);
+      release();
+    };
   }
 
   // Note: periodic heartbeat (ping) is not implemented in v0.1.

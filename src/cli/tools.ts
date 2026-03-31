@@ -331,7 +331,7 @@ async function remove(): Promise<void> {
 
   const tool = config.tools[selected as string];
   p.log.info(`Connection: ${tool.connection}`);
-  p.log.info(`SQL: ${tool.sql}`);
+  p.log.info(`SQL: ${tool.sql ?? `${tool.steps?.length ?? 0} steps`}`);
   if (tool.parameters) {
     p.log.info(`Parameters: ${Object.keys(tool.parameters).join(", ")}`);
   }
@@ -512,14 +512,14 @@ async function test(): Promise<void> {
 
   let substituted: { sql: string; values: unknown[] };
   try {
-    substituted = substituteParameters(tool.sql, args, paramDefs);
+    substituted = substituteParameters(tool.sql!, args, paramDefs);
   } catch (err) {
     console.error(pc.red(`Parameter error: ${err instanceof Error ? err.message : String(err)}`));
     process.exit(1);
   }
 
   p.log.info(`Connection: ${pc.cyan(tool.connection)}`);
-  p.log.info(`SQL template:\n${pc.dim(tool.sql.trim())}`);
+  p.log.info(`SQL template:\n${pc.dim(tool.sql!.trim())}`);
   if (substituted.values.length > 0) {
     p.log.info(
       `Parameters: ${substituted.values.map((v, i) => `$${i + 1} = ${pc.cyan(String(v))}`).join(", ")}`,

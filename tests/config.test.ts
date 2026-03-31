@@ -267,6 +267,81 @@ tools:
   });
 });
 
+describe("parseConfig with steps tools", () => {
+  it("parses a tool with steps", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+tools:
+  transfer:
+    connection: my-db
+    description: "Transfer funds"
+    steps:
+      - sql: "UPDATE accounts SET balance = balance - {amount} WHERE id = {from_id}"
+      - sql: "UPDATE accounts SET balance = balance + {amount} WHERE id = {to_id}"
+        return: true
+    parameters:
+      amount:
+        type: number
+        description: "Amount"
+      from_id:
+        type: number
+        description: "Source account"
+      to_id:
+        type: number
+        description: "Destination account"
+`;
+    const config = parseConfig(yaml);
+    expect(config.tools).toBeDefined();
+    const tool = config.tools!.transfer;
+    expect(tool.sql).toBeUndefined();
+    expect(tool.steps).toHaveLength(2);
+    expect(tool.steps![0].sql).toBe(
+      "UPDATE accounts SET balance = balance - {amount} WHERE id = {from_id}",
+    );
+    expect(tool.steps![0].return).toBeUndefined();
+    expect(tool.steps![1].return).toBe(true);
+  });
+
+  it("parses a tool with steps and no return marker", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+tools:
+  setup:
+    connection: my-db
+    description: "Setup tables"
+    steps:
+      - sql: "CREATE TABLE IF NOT EXISTS a (id INTEGER)"
+      - sql: "CREATE TABLE IF NOT EXISTS b (id INTEGER)"
+`;
+    const config = parseConfig(yaml);
+    const tool = config.tools!.setup;
+    expect(tool.steps).toHaveLength(2);
+    expect(tool.steps![0].return).toBeUndefined();
+    expect(tool.steps![1].return).toBeUndefined();
+  });
+
+  it("does not attempt SQL description extraction for steps tools", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+tools:
+  multi:
+    connection: my-db
+    description: "Multi step tool"
+    steps:
+      - sql: "SELECT 1"
+`;
+    const config = parseConfig(yaml);
+    expect(config.tools!.multi.description).toBe("Multi step tool");
+    expect(config.tools!.multi.sql).toBeUndefined();
+  });
+});
+
 describe("parseConfig audit section", () => {
   it("defaults audit log path to .omnibase/audit.log relative to config file", () => {
     const yaml = `

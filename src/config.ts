@@ -7,6 +7,7 @@ import {
   PermissionLevel,
   OmnibaseError,
   CustomToolConfig,
+  CustomToolStep,
   CustomToolParameterType,
   AuditConfig,
 } from "./types.js";
@@ -42,6 +43,7 @@ interface RawConfig {
       connection?: string;
       description?: string;
       sql?: string;
+      steps?: Array<{ sql?: string; return?: boolean }>;
       permission?: string;
       max_rows?: number;
       timeout?: number;
@@ -115,11 +117,21 @@ export function parseConfig(yamlContent: string, configFilePath?: string): Omnib
   if (raw.tools && Object.keys(raw.tools).length > 0) {
     tools = {};
     for (const [name, rawTool] of Object.entries(raw.tools)) {
-      const sqlDescription = extractSqlDescription(rawTool.sql!);
+      const sqlDescription = rawTool.sql ? extractSqlDescription(rawTool.sql) : undefined;
       const tool: CustomToolConfig = {
         connection: rawTool.connection!,
         description: rawTool.description ?? sqlDescription,
-        sql: rawTool.sql!,
+        ...(rawTool.sql != null ? { sql: rawTool.sql } : {}),
+        ...(rawTool.steps != null
+          ? {
+              steps: rawTool.steps.map(
+                (s): CustomToolStep => ({
+                  sql: s.sql!,
+                  ...(s.return != null ? { return: s.return } : {}),
+                }),
+              ),
+            }
+          : {}),
       };
 
       if (rawTool.permission) {

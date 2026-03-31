@@ -51,3 +51,27 @@ connections:
 #       SELECT * FROM orders
 #       WHERE status = {status}
 #         AND total >= {min_amount}
+#
+#   # Multi-statement tool (runs within a transaction)
+#   activity_report:
+#     connection: my-db
+#     description: "Generate user activity report"
+#     parameters:
+#       days:
+#         type: number
+#         description: "Days to look back"
+#         required: false
+#         default: 30
+#     steps:
+#       - sql: |
+#           CREATE TEMP TABLE recent_activity AS
+#           SELECT user_id, COUNT(*) as action_count
+#           FROM events
+#           WHERE created_at > datetime('now', '-' || {days} || ' days')
+#           GROUP BY user_id
+#       - sql: |
+#           SELECT u.name, COALESCE(ra.action_count, 0) as actions
+#           FROM users u
+#           LEFT JOIN recent_activity ra ON ra.user_id = u.id
+#           ORDER BY actions DESC
+#         return: true

@@ -16,6 +16,21 @@ func Execute(cm *ConnectionManager, id, query string, params []interface{}, maxR
 		return nil, err
 	}
 
+	// Handle transaction control statements (BEGIN/COMMIT/ROLLBACK) directly
+	if isTransactionControl(query) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+		defer cancel()
+		if _, err := conn.DB.ExecContext(ctx, query); err != nil {
+			return nil, fmt.Errorf("transaction control failed: %w", err)
+		}
+		return &ExecuteResult{
+			Columns:  []string{},
+			Rows:     [][]interface{}{},
+			RowCount: 0,
+			HasMore:  false,
+		}, nil
+	}
+
 	// Auto-translate ? placeholders to the driver's native style ($1, :1, @p1).
 	// This makes parameterized queries work consistently across all databases —
 	// agents can always use ? regardless of the target database.
@@ -261,4 +276,14 @@ func executeRead(ctx context.Context, conn *Connection, query string, params []i
 		RowCount: len(resultRows),
 		HasMore:  hasMore,
 	}, nil
+}
+
+// isTransactionControl returns true for BEGIN, COMMIT, and ROLLBACK statements.
+func isTransactionControl(query string) bool {
+	trimmed := strings.TrimSpace(query)
+	upper := strings.ToUpper(trimmed)
+	return upper == "BEGIN" || upper == "COMMIT" || upper == "ROLLBACK" ||
+		strings.HasPrefix(upper, "BEGIN ") ||
+		strings.HasPrefix(upper, "COMMIT ") ||
+		strings.HasPrefix(upper, "ROLLBACK ")
 }

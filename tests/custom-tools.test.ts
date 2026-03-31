@@ -6,6 +6,7 @@ import {
   substituteParameters,
   buildZodSchema,
   registerCustomTools,
+  executeCustomToolForTest,
 } from "../src/custom-tools.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ConnectionManager } from "../src/connection-manager.js";
@@ -13,7 +14,10 @@ import type { DatabaseBackend, QueryResult } from "../src/types.js";
 import type { OmnibaseConfig } from "../src/types.js";
 import { vi } from "vitest";
 
-function makeConfig(toolsOverride?: OmnibaseConfig["tools"]): OmnibaseConfig {
+function makeConfig(
+  toolsOverride?: OmnibaseConfig["tools"],
+  connectionOverrides?: Partial<OmnibaseConfig["connections"]["string"]>,
+): OmnibaseConfig {
   return {
     connections: {
       "my-db": {
@@ -22,6 +26,7 @@ function makeConfig(toolsOverride?: OmnibaseConfig["tools"]): OmnibaseConfig {
         permission: "read-only",
         timeout: 5000,
         maxRows: 100,
+        ...connectionOverrides,
       },
     },
     defaults: { permission: "read-only", timeout: 30000, maxRows: 500 },
@@ -387,5 +392,245 @@ describe("registerCustomTools", () => {
     const handles = registerCustomTools(server, config, cm);
     expect(handles.size).toBe(1);
     expect(handles.has("custom_get_users")).toBe(true);
+  });
+});
+
+describe("validateCustomTools steps", () => {
+  it("accepts a valid steps tool", () => {
+    const config = makeConfig({
+      transfer: {
+        connection: "my-db",
+        description: "Transfer",
+        steps: [
+          { sql: "UPDATE accounts SET balance = balance - 100 WHERE id = 1" },
+          { sql: "UPDATE accounts SET balance = balance + 100 WHERE id = 2" },
+        ],
+      },
+    });
+    expect(() => validateCustomTools(config)).not.toThrow();
+  });
+
+  it("rejects tool with both sql and steps", () => {
+    const config = makeConfig({
+      bad_tool: {
+        connection: "my-db",
+        description: "Bad",
+        sql: "SELECT 1",
+        steps: [{ sql: "SELECT 2" }],
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("cannot define both");
+  });
+
+  it("rejects tool with neither sql nor steps", () => {
+    const config = makeConfig({
+      empty_tool: {
+        connection: "my-db",
+        description: "Empty",
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("must define either");
+  });
+
+  it("rejects empty steps array", () => {
+    const config = makeConfig({
+      no_steps: {
+        connection: "my-db",
+        description: "No steps",
+        steps: [],
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("at least one step");
+  });
+
+  it("rejects multiple return: true steps", () => {
+    const config = makeConfig({
+      multi_return: {
+        connection: "my-db",
+        description: "Multi return",
+        steps: [
+          { sql: "SELECT 1", return: true },
+          { sql: "SELECT 2", return: true },
+        ],
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("at most one step");
+  });
+
+  it("collects placeholders across all steps", () => {
+    const config = makeConfig({
+      cross_step: {
+        connection: "my-db",
+        description: "Cross step params",
+        steps: [
+          { sql: "UPDATE t SET a = {val} WHERE id = {id}" },
+          { sql: "SELECT * FROM t WHERE id = {id}" },
+        ],
+        parameters: {
+          val: { type: "string", description: "Value" },
+          id: { type: "number", description: "ID" },
+        },
+      },
+    });
+    expect(() => validateCustomTools(config)).not.toThrow();
+  });
+
+  it("rejects missing parameter across steps", () => {
+    const config = makeConfig({
+      missing: {
+        connection: "my-db",
+        description: "Missing param",
+        steps: [{ sql: "SELECT 1" }, { sql: "SELECT * FROM t WHERE id = {id}" }],
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("id");
+  });
+});
+
+describe("executeCustomToolForTest steps", () => {
+  function makeRWConfig(toolsOverride: OmnibaseConfig["tools"]): OmnibaseConfig {
+    return {
+      connections: {
+        "my-db": {
+          name: "my-db",
+          dsn: "sqlite::memory:",
+          permission: "read-write",
+          timeout: 5000,
+          maxRows: 100,
+        },
+      },
+      defaults: { permission: "read-only", timeout: 30000, maxRows: 500 },
+      tools: toolsOverride,
+    };
+  }
+
+  it("executes steps within BEGIN/COMMIT", async () => {
+    const executeCalls: string[] = [];
+    const backend = makeMockBackend();
+    (backend.execute as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_id: string, query: string) => {
+        executeCalls.push(query);
+        return { columns: ["r"], rows: [[1]], rowCount: 1, hasMore: false };
+      },
+    );
+    const cm = new ConnectionManager(backend);
+    const config = makeRWConfig({
+      multi: {
+        connection: "my-db",
+        description: "Multi",
+        steps: [{ sql: "INSERT INTO t VALUES (1)" }, { sql: "SELECT * FROM t" }],
+      },
+    });
+
+    await executeCustomToolForTest(config, cm, "multi", config.tools!.multi, {});
+
+    expect(executeCalls[0]).toBe("BEGIN");
+    expect(executeCalls[1]).toBe("INSERT INTO t VALUES (1)");
+    expect(executeCalls[2]).toBe("SELECT * FROM t");
+    expect(executeCalls[3]).toBe("COMMIT");
+  });
+
+  it("returns result from step marked return: true", async () => {
+    const backend = makeMockBackend();
+    let callIndex = 0;
+    (backend.execute as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      callIndex++;
+      if (callIndex === 2) {
+        // First step (after BEGIN)
+        return { columns: ["inserted"], rows: [[42]], rowCount: 1, hasMore: false };
+      }
+      if (callIndex === 3) {
+        // Second step (the return step)
+        return { columns: ["result"], rows: [["ok"]], rowCount: 1, hasMore: false };
+      }
+      return { columns: [], rows: [], rowCount: 0, hasMore: false };
+    });
+    const cm = new ConnectionManager(backend);
+    const config = makeRWConfig({
+      multi: {
+        connection: "my-db",
+        description: "Multi",
+        steps: [
+          { sql: "INSERT INTO t VALUES (1)" },
+          { sql: "SELECT 'ok' as result", return: true },
+          { sql: "UPDATE t SET done = 1" },
+        ],
+      },
+    });
+
+    const result = await executeCustomToolForTest(config, cm, "multi", config.tools!.multi, {});
+    expect(result.columns).toEqual(["result"]);
+    expect(result.rows[0][0]).toBe("ok");
+  });
+
+  it("issues ROLLBACK on error", async () => {
+    const executeCalls: string[] = [];
+    const backend = makeMockBackend();
+    (backend.execute as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_id: string, query: string) => {
+        executeCalls.push(query);
+        if (query.startsWith("INSERT")) {
+          throw new Error("insert failed");
+        }
+        return { columns: [], rows: [], rowCount: 0, hasMore: false };
+      },
+    );
+    const cm = new ConnectionManager(backend);
+    const config = makeRWConfig({
+      multi: {
+        connection: "my-db",
+        description: "Multi",
+        steps: [{ sql: "INSERT INTO t VALUES (1)" }, { sql: "SELECT 1" }],
+      },
+    });
+
+    await expect(
+      executeCustomToolForTest(config, cm, "multi", config.tools!.multi, {}),
+    ).rejects.toThrow("insert failed");
+
+    expect(executeCalls).toContain("ROLLBACK");
+  });
+
+  it("rejects blocked statement in a step", async () => {
+    const backend = makeMockBackend();
+    const cm = new ConnectionManager(backend);
+    const config = makeRWConfig({
+      bad: {
+        connection: "my-db",
+        description: "Bad",
+        steps: [{ sql: "SELECT 1" }, { sql: "ATTACH DATABASE '/tmp/x' AS x" }],
+      },
+    });
+
+    await expect(
+      executeCustomToolForTest(config, cm, "bad", config.tools!.bad, {}),
+    ).rejects.toThrow("not allowed");
+  });
+
+  it("defaults to last step result when no return marker", async () => {
+    const backend = makeMockBackend();
+    let callIndex = 0;
+    (backend.execute as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      callIndex++;
+      if (callIndex === 2) {
+        return { columns: ["a"], rows: [["first"]], rowCount: 1, hasMore: false };
+      }
+      if (callIndex === 3) {
+        return { columns: ["b"], rows: [["last"]], rowCount: 1, hasMore: false };
+      }
+      return { columns: [], rows: [], rowCount: 0, hasMore: false };
+    });
+    const cm = new ConnectionManager(backend);
+    const config = makeRWConfig({
+      multi: {
+        connection: "my-db",
+        description: "Multi",
+        steps: [{ sql: "SELECT 'first' as a" }, { sql: "SELECT 'last' as b" }],
+      },
+    });
+
+    const result = await executeCustomToolForTest(config, cm, "multi", config.tools!.multi, {});
+    expect(result.columns).toEqual(["b"]);
+    expect(result.rows[0][0]).toBe("last");
   });
 });

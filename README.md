@@ -155,6 +155,34 @@ Custom tools are registered as `custom_<name>` (e.g., `custom_get_active_users`)
 
 **Optional overrides per tool:** `permission`, `max_rows`, `timeout` (fall back to connection/default values)
 
+**Multi-statement tools:** Use `steps` instead of `sql` to run multiple statements within a transaction. Mark one step with `return: true` to control which result goes back to the agent (defaults to the last step). If any step fails, the entire transaction is rolled back.
+
+```yaml
+tools:
+  user_activity_report:
+    connection: my-db
+    description: "Generate user activity report"
+    parameters:
+      days:
+        type: number
+        description: "Days to look back"
+        required: false
+        default: 30
+    steps:
+      - sql: |
+          CREATE TEMP TABLE recent_activity AS
+          SELECT user_id, COUNT(*) as action_count
+          FROM events
+          WHERE created_at > datetime('now', '-' || {days} || ' days')
+          GROUP BY user_id
+      - sql: |
+          SELECT u.name, u.email, COALESCE(ra.action_count, 0) as actions
+          FROM users u
+          LEFT JOIN recent_activity ra ON ra.user_id = u.id
+          ORDER BY actions DESC
+        return: true
+```
+
 **Hot reload:** The server watches your config file and reloads custom tools automatically when it changes. No restart needed.
 
 **CLI management:**

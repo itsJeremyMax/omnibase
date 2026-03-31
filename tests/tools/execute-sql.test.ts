@@ -1,6 +1,6 @@
 // tests/tools/execute-sql.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { handleExecuteSql } from "../../src/tools/execute-sql.js";
+import { handleExecuteSql, checkSqlSecurity } from "../../src/tools/execute-sql.js";
 import { ConnectionManager } from "../../src/connection-manager.js";
 import type { OmnibaseConfig, DatabaseBackend, QueryResult } from "../../src/types.js";
 
@@ -91,5 +91,49 @@ describe("handleExecuteSql", () => {
         query: "SELECT 1",
       }),
     ).rejects.toThrow("Unknown connection");
+  });
+});
+
+describe("checkSqlSecurity", () => {
+  const connConfig = {
+    name: "test-db",
+    dsn: "sqlite::memory:",
+    permission: "read-write" as const,
+    timeout: 5000,
+    maxRows: 100,
+  };
+
+  it("throws on dangerous function", () => {
+    expect(() => checkSqlSecurity("SELECT pg_read_file('/etc/passwd')", connConfig)).toThrow(
+      "not allowed",
+    );
+  });
+
+  it("throws on sensitive table", () => {
+    expect(() => checkSqlSecurity("SELECT * FROM pg_shadow", connConfig)).toThrow("not allowed");
+  });
+
+  it("throws on ATTACH", () => {
+    expect(() => checkSqlSecurity("ATTACH DATABASE '/tmp/x' AS x", connConfig)).toThrow(
+      "not allowed",
+    );
+  });
+
+  it("throws on BEGIN", () => {
+    expect(() => checkSqlSecurity("BEGIN", connConfig)).toThrow("not allowed");
+  });
+
+  it("throws on INTO OUTFILE", () => {
+    expect(() =>
+      checkSqlSecurity("SELECT * FROM users INTO OUTFILE '/tmp/out'", connConfig),
+    ).toThrow("not allowed");
+  });
+
+  it("does NOT throw on SELECT", () => {
+    expect(() => checkSqlSecurity("SELECT 1", connConfig)).not.toThrow();
+  });
+
+  it("does NOT throw on INSERT", () => {
+    expect(() => checkSqlSecurity("INSERT INTO users VALUES (1)", connConfig)).not.toThrow();
   });
 });
