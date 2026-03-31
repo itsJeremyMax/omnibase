@@ -342,6 +342,72 @@ tools:
   });
 });
 
+describe("parseConfig with compose tools", () => {
+  it("parses a tool with compose pipeline", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+tools:
+  get_ids:
+    connection: my-db
+    description: "Get IDs"
+    sql: "SELECT id FROM users"
+  user_orders:
+    connection: my-db
+    description: "Orders for active users"
+    compose:
+      - tool: get_ids
+        as: users
+      - sql: "SELECT * FROM orders WHERE user_id IN ({users.id})"
+        as: orders
+`;
+    const config = parseConfig(yaml);
+    expect(config.tools).toBeDefined();
+    const tool = config.tools!.user_orders;
+    expect(tool.sql).toBeUndefined();
+    expect(tool.steps).toBeUndefined();
+    expect(tool.compose).toHaveLength(2);
+    expect(tool.compose![0]).toEqual({ tool: "get_ids", args: undefined, as: "users" });
+    expect(tool.compose![1]).toEqual({
+      sql: "SELECT * FROM orders WHERE user_id IN ({users.id})",
+      as: "orders",
+    });
+  });
+
+  it("parses compose step with args", () => {
+    const yaml = `
+connections:
+  my-db:
+    dsn: sqlite:./test.db
+tools:
+  find_users:
+    connection: my-db
+    description: "Find users"
+    sql: "SELECT id FROM users WHERE role = {role}"
+    parameters:
+      role:
+        type: string
+        description: "Role"
+  composed:
+    connection: my-db
+    description: "Composed"
+    compose:
+      - tool: find_users
+        args:
+          role: admin
+        as: admins
+      - sql: "SELECT * FROM t WHERE id IN ({admins.id})"
+        as: result
+`;
+    const config = parseConfig(yaml);
+    const step = config.tools!.composed.compose![0]!;
+    expect(step.tool).toBe("find_users");
+    expect(step.args).toEqual({ role: "admin" });
+    expect(step.as).toBe("admins");
+  });
+});
+
 describe("parseConfig audit section", () => {
   it("defaults audit log path to .omnibase/audit.log relative to config file", () => {
     const yaml = `

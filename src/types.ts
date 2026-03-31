@@ -190,11 +190,28 @@ export interface CustomToolStep {
   return?: boolean;
 }
 
+export interface ComposeStepToolRef {
+  tool: string;
+  args?: Record<string, unknown>;
+  as: string;
+  sql?: never;
+}
+
+export interface ComposeStepSql {
+  sql: string;
+  as: string;
+  tool?: never;
+  args?: never;
+}
+
+export type ComposeStep = ComposeStepToolRef | ComposeStepSql;
+
 export interface CustomToolConfig {
   connection: string;
   description?: string;
   sql?: string;
   steps?: CustomToolStep[];
+  compose?: ComposeStep[];
   permission?: PermissionLevel;
   maxRows?: number;
   timeout?: number;

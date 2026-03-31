@@ -7,6 +7,7 @@ import {
   buildZodSchema,
   registerCustomTools,
   executeCustomToolForTest,
+  executeCustomTool,
 } from "../src/custom-tools.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ConnectionManager } from "../src/connection-manager.js";
@@ -419,7 +420,7 @@ describe("validateCustomTools steps", () => {
         steps: [{ sql: "SELECT 2" }],
       },
     });
-    expect(() => validateCustomTools(config)).toThrow("cannot define both");
+    expect(() => validateCustomTools(config)).toThrow("cannot define more than one");
   });
 
   it("rejects tool with neither sql nor steps", () => {
@@ -632,5 +633,244 @@ describe("executeCustomToolForTest steps", () => {
     const result = await executeCustomToolForTest(config, cm, "multi", config.tools!.multi, {});
     expect(result.columns).toEqual(["b"]);
     expect(result.rows[0][0]).toBe("last");
+  });
+});
+
+describe("validateCustomTools compose", () => {
+  it("accepts a valid compose tool", () => {
+    const config = makeConfig({
+      get_ids: {
+        connection: "my-db",
+        description: "Get IDs",
+        sql: "SELECT id FROM users",
+      },
+      composed: {
+        connection: "my-db",
+        description: "Composed tool",
+        compose: [
+          { tool: "get_ids", as: "ids" },
+          { sql: "SELECT * FROM orders WHERE user_id IN ({ids.id})", as: "orders" },
+        ],
+      },
+    });
+    expect(() => validateCustomTools(config)).not.toThrow();
+  });
+
+  it("rejects compose with empty steps", () => {
+    const config = makeConfig({
+      bad: {
+        connection: "my-db",
+        description: "Bad",
+        compose: [],
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("at least one step");
+  });
+
+  it("rejects compose step with neither tool nor sql", () => {
+    const config = makeConfig({
+      bad: {
+        connection: "my-db",
+        description: "Bad",
+        compose: [{ as: "step1" } as any],
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("exactly one of");
+  });
+
+  it("rejects compose step referencing unknown tool", () => {
+    const config = makeConfig({
+      bad: {
+        connection: "my-db",
+        description: "Bad",
+        compose: [{ tool: "nonexistent", as: "step1" }],
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("unknown tool 'nonexistent'");
+  });
+
+  it("rejects duplicate step names", () => {
+    const config = makeConfig({
+      helper: {
+        connection: "my-db",
+        description: "Helper",
+        sql: "SELECT 1",
+      },
+      bad: {
+        connection: "my-db",
+        description: "Bad",
+        compose: [
+          { tool: "helper", as: "step1" },
+          { sql: "SELECT 2", as: "step1" },
+        ],
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("duplicate compose step name 'step1'");
+  });
+
+  it("detects circular dependencies", () => {
+    const config = makeConfig({
+      tool_a: {
+        connection: "my-db",
+        description: "A",
+        compose: [{ tool: "tool_b", as: "step1" }],
+      },
+      tool_b: {
+        connection: "my-db",
+        description: "B",
+        compose: [{ tool: "tool_a", as: "step1" }],
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("Circular dependency");
+  });
+
+  it("rejects step name that shadows a parameter", () => {
+    const config = makeConfig({
+      helper: {
+        connection: "my-db",
+        description: "Helper",
+        sql: "SELECT 1",
+      },
+      bad: {
+        connection: "my-db",
+        description: "Bad",
+        compose: [{ tool: "helper", as: "status" }],
+        parameters: {
+          status: { type: "string", description: "Status" },
+        },
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("shadows a parameter");
+  });
+});
+
+describe("executeCustomTool compose", () => {
+  function makeRWConfig(toolsOverride: OmnibaseConfig["tools"]): OmnibaseConfig {
+    return {
+      connections: {
+        "my-db": {
+          name: "my-db",
+          dsn: "sqlite::memory:",
+          permission: "read-only",
+          timeout: 5000,
+          maxRows: 100,
+        },
+      },
+      defaults: { permission: "read-only", timeout: 30000, maxRows: 500 },
+      tools: toolsOverride,
+    };
+  }
+
+  it("executes a two-step compose pipeline with ID expansion", async () => {
+    const executeCalls: { query: string; params: unknown[] }[] = [];
+    const backend = makeMockBackend();
+    (backend.execute as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_id: string, query: string, params?: unknown[]) => {
+        executeCalls.push({ query, params: params ?? [] });
+        if (query.includes("FROM users")) {
+          return { columns: ["id"], rows: [[1], [2], [3]], rowCount: 3, hasMore: false };
+        }
+        return {
+          columns: ["order_id", "user_id"],
+          rows: [
+            [10, 1],
+            [20, 2],
+          ],
+          rowCount: 2,
+          hasMore: false,
+        };
+      },
+    );
+    const cm = new ConnectionManager(backend);
+    const config = makeRWConfig({
+      get_user_ids: {
+        connection: "my-db",
+        description: "Get user IDs",
+        sql: "SELECT id FROM users WHERE active = true",
+      },
+      user_orders: {
+        connection: "my-db",
+        description: "Get orders for active users",
+        compose: [
+          { tool: "get_user_ids", as: "users" },
+          { sql: "SELECT * FROM orders WHERE user_id IN ({users.id})", as: "orders" },
+        ],
+      },
+    });
+
+    const result = await executeCustomTool(
+      config,
+      cm,
+      "user_orders",
+      config.tools!.user_orders,
+      {},
+    );
+    expect(result.columns).toEqual(["order_id", "user_id"]);
+    expect(result.rows).toEqual([
+      [10, 1],
+      [20, 2],
+    ]);
+
+    // Verify the second step expanded the IDs
+    const orderQuery = executeCalls.find((c) => c.query.includes("orders"));
+    expect(orderQuery).toBeDefined();
+    expect(orderQuery!.query).toContain("1, 2, 3");
+  });
+
+  it("propagates errors from referenced tools", async () => {
+    const backend = makeMockBackend();
+    (backend.execute as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("db error"));
+    const cm = new ConnectionManager(backend);
+    const config = makeRWConfig({
+      failing_tool: {
+        connection: "my-db",
+        description: "Fails",
+        sql: "SELECT 1/0",
+      },
+      composed: {
+        connection: "my-db",
+        description: "Uses failing tool",
+        compose: [
+          { tool: "failing_tool", as: "step1" },
+          { sql: "SELECT 1", as: "step2" },
+        ],
+      },
+    });
+
+    await expect(
+      executeCustomTool(config, cm, "composed", config.tools!.composed, {}),
+    ).rejects.toThrow("db error");
+  });
+
+  it("throws on empty result used in compose reference", async () => {
+    const backend = makeMockBackend();
+    (backend.execute as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_id: string, query: string) => {
+        if (query.includes("FROM users")) {
+          return { columns: ["id"], rows: [], rowCount: 0, hasMore: false };
+        }
+        return { columns: ["id"], rows: [[1]], rowCount: 1, hasMore: false };
+      },
+    );
+    const cm = new ConnectionManager(backend);
+    const config = makeRWConfig({
+      get_users: {
+        connection: "my-db",
+        description: "Get users",
+        sql: "SELECT id FROM users WHERE active = false",
+      },
+      composed: {
+        connection: "my-db",
+        description: "Composed",
+        compose: [
+          { tool: "get_users", as: "users" },
+          { sql: "SELECT * FROM orders WHERE user_id IN ({users.id})", as: "orders" },
+        ],
+      },
+    });
+
+    await expect(
+      executeCustomTool(config, cm, "composed", config.tools!.composed, {}),
+    ).rejects.toThrow("returned no rows");
   });
 });

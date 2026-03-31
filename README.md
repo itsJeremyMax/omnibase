@@ -183,6 +183,27 @@ tools:
         return: true
 ```
 
+**Tool composition:** Use `compose` to build pipelines where each step can call another custom tool or run inline SQL. Results from earlier steps are available to later steps via `{step_name.column}` references, which expand to comma-separated values.
+
+```yaml
+tools:
+  get_active_user_ids:
+    connection: my-db
+    description: "Get active user IDs"
+    sql: "SELECT id FROM users WHERE active = true"
+
+  active_user_orders:
+    connection: my-db
+    description: "Get orders for all active users"
+    compose:
+      - tool: get_active_user_ids
+        as: users
+      - sql: "SELECT * FROM orders WHERE user_id IN ({users.id})"
+        as: orders
+```
+
+Steps run sequentially and the last step's result is returned. Tool-ref steps can pass arguments via `args`, and inline SQL steps can reference results from any prior step. Circular dependencies between composed tools are detected at validation time.
+
 **Hot reload:** The server watches your config file and reloads custom tools automatically when it changes. No restart needed.
 
 **CLI management:**

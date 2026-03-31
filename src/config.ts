@@ -10,6 +10,8 @@ import {
   CustomToolStep,
   CustomToolParameterType,
   AuditConfig,
+  ComposeStepToolRef,
+  ComposeStepSql,
 } from "./types.js";
 import { extractSqlDescription } from "./custom-tools.js";
 
@@ -44,6 +46,7 @@ interface RawConfig {
       description?: string;
       sql?: string;
       steps?: Array<{ sql?: string; return?: boolean }>;
+      compose?: Array<{ tool?: string; sql?: string; args?: Record<string, unknown>; as?: string }>;
       permission?: string;
       max_rows?: number;
       timeout?: number;
@@ -134,6 +137,19 @@ export function parseConfig(yamlContent: string, configFilePath?: string): Omnib
             }
           : {}),
       };
+
+      if (rawTool.compose && rawTool.compose.length > 0) {
+        tool.compose = rawTool.compose.map((rawStep) => {
+          if (rawStep.tool) {
+            return {
+              tool: rawStep.tool,
+              args: rawStep.args,
+              as: rawStep.as!,
+            } as ComposeStepToolRef;
+          }
+          return { sql: rawStep.sql!, as: rawStep.as! } as ComposeStepSql;
+        });
+      }
 
       if (rawTool.permission) {
         tool.permission = validatePermission(rawTool.permission);
