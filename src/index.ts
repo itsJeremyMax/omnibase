@@ -56,6 +56,14 @@ if (cliCommand === "init") {
   handleInit();
 } else if (cliCommand === "tools") {
   handleToolsCommand();
+} else if (cliCommand === "status") {
+  handleStatusCommand();
+}
+
+async function handleStatusCommand(): Promise<never> {
+  const { runStatus } = await import("./cli/status.js");
+  await runStatus();
+  process.exit(0);
 }
 
 async function handleToolsCommand(): Promise<never> {

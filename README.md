@@ -159,6 +159,7 @@ npx omnibase-mcp tools add        # interactive wizard to add a tool
 npx omnibase-mcp tools remove     # interactive wizard to remove a tool
 npx omnibase-mcp tools validate   # validate custom tool definitions
 npx omnibase-mcp tools test       # dry-run a tool with sample arguments
+npx omnibase-mcp status           # ping all connections, show health dashboard
 ```
 
 ## What Makes This Different
