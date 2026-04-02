@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.28](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.27...omnibase-mcp-v0.1.28) (2026-04-02)
+
+
+### Features
+
+* add omnibase logo and banner ([f307f34](https://github.com/itsJeremyMax/omnibase/commit/f307f34be387883df6e0c24c722412d08b69c467))
+
+
+### Bug Fixes
+
+* install unixodbc-dev headers for ODBC driver builds in CI ([0402b0d](https://github.com/itsJeremyMax/omnibase/commit/0402b0da1d04e6c1601cbc19aed4ea09782bd3bf))
+
 ## [0.1.27](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.26...omnibase-mcp-v0.1.27) (2026-04-02)
 
 
