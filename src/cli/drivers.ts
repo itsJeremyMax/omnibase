@@ -1,16 +1,40 @@
 import pc from "picocolors";
 import Table from "cli-table3";
 import { join, resolve } from "path";
-import { existsSync, readFileSync, readdirSync, rmSync, mkdirSync } from "fs";
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  mkdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "fs";
 import { execSync } from "child_process";
+import { createHash } from "crypto";
 import os from "os";
 
 const REPO = "itsJeremyMax/omnibase";
 
+function findPackageJson(): string {
+  let dir = __dirname;
+  while (dir !== resolve(dir, "..")) {
+    const candidate = join(dir, "package.json");
+    if (existsSync(candidate)) {
+      const pkg = JSON.parse(readFileSync(candidate, "utf-8"));
+      if (pkg.name === "omnibase-mcp") return candidate;
+    }
+    dir = resolve(dir, "..");
+  }
+  throw new Error("Could not find omnibase-mcp package.json");
+}
+
+function getPackageRoot(): string {
+  return resolve(findPackageJson(), "..");
+}
+
 function getVersion(): string {
-  const pkg = JSON.parse(
-    readFileSync(resolve(__dirname, "..", "..", "..", "package.json"), "utf-8"),
-  );
+  const pkg = JSON.parse(readFileSync(findPackageJson(), "utf-8"));
   return pkg.version;
 }
 
@@ -34,6 +58,35 @@ function getPlatformKey(): string {
   return `${p}-${a}`;
 }
 
+function verifyDriverChecksum(filePath: string, assetName: string, checksumsText: string): boolean {
+  const line = checksumsText
+    .trim()
+    .split("\n")
+    .find((l) => {
+      const parts = l.split(/\s+/);
+      return parts[1] === assetName;
+    });
+  if (!line) return false;
+  const expectedHash = line.split(/\s+/)[0];
+  const content = readFileSync(filePath);
+  const actualHash = createHash("sha256").update(content).digest("hex");
+  return actualHash === expectedHash;
+}
+
+function downloadChecksums(version: string, driversDir: string): string | null {
+  const checksumsPath = join(driversDir, "driver-checksums-sha256.txt");
+  if (existsSync(checksumsPath)) {
+    return readFileSync(checksumsPath, "utf-8");
+  }
+  const url = `https://github.com/${REPO}/releases/download/omnibase-mcp-v${version}/driver-checksums-sha256.txt`;
+  try {
+    execSync(`curl -fsSL -o "${checksumsPath}" "${url}"`, { stdio: "pipe" });
+    return readFileSync(checksumsPath, "utf-8");
+  } catch {
+    return null;
+  }
+}
+
 interface DriverManifest {
   drivers: Record<string, { binary: string; schemes: string[] }>;
 }
@@ -45,7 +98,7 @@ function loadManifest(): DriverManifest | null {
     return JSON.parse(readFileSync(versionManifest, "utf-8"));
   }
   // Fall back to sidecar source dir
-  const srcManifest = resolve(__dirname, "..", "..", "..", "sidecar", "drivers.json");
+  const srcManifest = join(getPackageRoot(), "sidecar", "drivers.json");
   if (existsSync(srcManifest)) {
     return JSON.parse(readFileSync(srcManifest, "utf-8"));
   }
@@ -142,6 +195,13 @@ async function install(target?: string): Promise<void> {
     }
   }
 
+  const checksumsText = downloadChecksums(version, driversDir);
+  if (!checksumsText) {
+    console.log(
+      pc.yellow("Warning: could not download checksums file. Downloads will not be verified."),
+    );
+  }
+
   let installed = 0;
   let skipped = 0;
   let failed = 0;
@@ -159,38 +219,57 @@ async function install(target?: string): Promise<void> {
     const url = `https://github.com/${REPO}/releases/download/omnibase-mcp-v${version}/${assetName}`;
     console.log(`  Downloading ${assetName}...`);
 
+    let downloaded = false;
     try {
       execSync(`curl -fsSL -o "${destPath}" "${url}"`, { stdio: "pipe" });
-      execSync(`chmod +x "${destPath}"`, { stdio: "pipe" });
-      console.log(pc.green(`  ${assetName} installed.`));
-      installed++;
+      downloaded = true;
     } catch {
-      // Download failed; try building from source
-      const sidecarDir = resolve(__dirname, "..", "..", "..", "sidecar");
-      const driverPkg = binary.replace("driver-", "");
-      const mainGo = join(sidecarDir, "drivers", driverPkg, "main.go");
+      // Download failed; fall through to source build
+    }
 
-      if (existsSync(mainGo)) {
-        try {
-          execSync("go version", { stdio: "pipe" });
-          console.log(pc.dim(`  Download failed, building ${driverPkg} from source...`));
-          execSync(`cd "${sidecarDir}" && go build -o "${destPath}" ./drivers/${driverPkg}/`, {
-            stdio: "pipe",
-          });
-          execSync(`chmod +x "${destPath}"`, { stdio: "pipe" });
-          // Mark as unverified
-          const { writeFileSync } = await import("fs");
-          writeFileSync(destPath + ".unverified", "built from source");
-          console.log(pc.yellow(`  ${assetName} built from source (unverified).`));
-          installed++;
-        } catch {
-          console.error(pc.red(`  Failed to download or build ${assetName}.`));
-          failed++;
-        }
+    if (downloaded && checksumsText) {
+      if (!verifyDriverChecksum(destPath, assetName, checksumsText)) {
+        unlinkSync(destPath);
+        console.error(pc.red(`  Checksum verification failed for ${assetName}.`));
+        downloaded = false;
+      }
+    }
+
+    if (downloaded) {
+      execSync(`chmod +x "${destPath}"`, { stdio: "pipe" });
+      if (!checksumsText) {
+        writeFileSync(destPath + ".unverified", "downloaded without checksum verification");
+        console.log(pc.yellow(`  ${assetName} installed (unverified - no checksums available).`));
       } else {
-        console.error(pc.red(`  Failed to download ${assetName}.`));
+        console.log(pc.green(`  ${assetName} installed.`));
+      }
+      installed++;
+      continue;
+    }
+
+    // Download failed or checksum mismatch; try building from source
+    const sidecarDir = join(getPackageRoot(), "sidecar");
+    const driverPkg = binary.replace("driver-", "");
+    const mainGo = join(sidecarDir, "drivers", driverPkg, "main.go");
+
+    if (existsSync(mainGo)) {
+      try {
+        execSync("go version", { stdio: "pipe" });
+        console.log(pc.dim(`  Download failed, building ${driverPkg} from source...`));
+        execSync(`cd "${sidecarDir}" && go build -o "${destPath}" ./drivers/${driverPkg}/`, {
+          stdio: "pipe",
+        });
+        execSync(`chmod +x "${destPath}"`, { stdio: "pipe" });
+        writeFileSync(destPath + ".unverified", "built from source");
+        console.log(pc.yellow(`  ${assetName} built from source (unverified).`));
+        installed++;
+      } catch {
+        console.error(pc.red(`  Failed to download or build ${assetName}.`));
         failed++;
       }
+    } else {
+      console.error(pc.red(`  Failed to download ${assetName}.`));
+      failed++;
     }
   }
 
@@ -216,7 +295,7 @@ async function build(target?: string): Promise<void> {
     return;
   }
 
-  const sidecarDir = resolve(__dirname, "..", "..", "..", "sidecar");
+  const sidecarDir = join(getPackageRoot(), "sidecar");
   if (!existsSync(join(sidecarDir, "drivers"))) {
     console.error(
       pc.red("Sidecar source not found. This command requires the omnibase source tree."),
@@ -293,7 +372,6 @@ async function build(target?: string): Promise<void> {
         },
       );
       execSync(`chmod +x "${destPath}"`, { stdio: "pipe" });
-      const { writeFileSync } = await import("fs");
       writeFileSync(destPath + ".unverified", "built from source");
       console.log(pc.yellow(" ok (unverified)"));
       built++;
@@ -349,3 +427,6 @@ async function path(): Promise<void> {
 }
 
 export const drivers = { list, install, build, clean, path };
+
+// Exported for testing
+export const _testing = { verifyDriverChecksum, findPackageJson, getPackageRoot, getPlatformKey };

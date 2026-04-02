@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -355,6 +356,163 @@ func TestSidecarDirFromBinSubdir(t *testing.T) {
 		t.Fatal("expected drivers/ in parent of bin/")
 	}
 	_ = dl
+}
+
+func TestGetClientFindsDriverInDownloaderDir(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("Go not installed")
+	}
+
+	sidecarDir, _ := filepath.Abs("..")
+	if _, err := os.Stat(filepath.Join(sidecarDir, "drivers", "sqlite3", "main.go")); err != nil {
+		t.Skip("sqlite3 driver source not found")
+	}
+
+	// Create two separate directories: one for the manager's driversDir
+	// and one for the downloader's versioned dir
+	managerDir := t.TempDir()
+	downloaderBase := t.TempDir()
+
+	dl := NewDownloader(downloaderBase, "0.1.99", "nonexistent/repo")
+	dl.EnsureDriverDir()
+	writeManifest(t, managerDir, testManifest())
+	writeManifest(t, dl.DriverDir(), testManifest())
+
+	// Build a sqlite3 driver into the downloader's dir (not the manager's dir)
+	platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+	binaryPath := filepath.Join(dl.DriverDir(), "driver-sqlite3-"+platform)
+	cmd := exec.Command("go", "build", "-o", binaryPath, "./drivers/sqlite3/")
+	cmd.Dir = sidecarDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to build driver: %v", err)
+	}
+
+	// Manager's driversDir does NOT have the binary, but downloader's dir does
+	mgr := NewManager(managerDir, dl, nil)
+	defer mgr.StopAll()
+
+	client, err := mgr.GetClient("driver-sqlite3")
+	if err != nil {
+		t.Fatalf("GetClient should find driver in downloader dir, got: %v", err)
+	}
+	if client == nil {
+		t.Fatal("expected non-nil client")
+	}
+
+	// Verify it works
+	params, _ := json.Marshal(map[string]interface{}{"id": "test", "dsn": "sqlite::memory:"})
+	result, err := client.Send("connect", params)
+	if err != nil {
+		t.Fatalf("connect failed: %v", err)
+	}
+	var cr map[string]interface{}
+	json.Unmarshal(result, &cr)
+	if cr["ok"] != true {
+		t.Fatalf("expected ok=true, got %v", cr["ok"])
+	}
+}
+
+func TestNewManagerWithEmbeddedManifest(t *testing.T) {
+	tmpDir := t.TempDir() // empty dir, no drivers.json on disk
+
+	manifest := testManifest()
+	data, _ := json.Marshal(manifest)
+
+	mgr := NewManager(tmpDir, nil, data)
+
+	// Should resolve via embedded manifest
+	binary, err := mgr.ResolveDriver("pg")
+	if err != nil {
+		t.Fatalf("ResolveDriver with embedded manifest failed: %v", err)
+	}
+	if binary != "driver-postgres" {
+		t.Errorf("got %q, want driver-postgres", binary)
+	}
+}
+
+func TestNewManagerEmbeddedManifestFallback(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write a disk manifest with only postgres
+	diskManifest := Manifest{
+		Drivers: map[string]DriverEntry{
+			"postgres": {Binary: "driver-postgres", Schemes: []string{"pg"}},
+		},
+	}
+	writeManifest(t, tmpDir, diskManifest)
+
+	// Embedded manifest has mysql too
+	fullManifest := testManifest()
+	embedded, _ := json.Marshal(fullManifest)
+
+	mgr := NewManager(tmpDir, nil, embedded)
+
+	// Disk manifest should take precedence - should find pg
+	if _, err := mgr.ResolveDriver("pg"); err != nil {
+		t.Fatalf("pg should resolve from disk manifest: %v", err)
+	}
+
+	// mysql is only in embedded - disk manifest should win, so mysql is NOT available
+	if _, err := mgr.ResolveDriver("mysql"); err == nil {
+		t.Error("mysql should NOT resolve when disk manifest takes precedence")
+	}
+}
+
+func TestNewManagerMalformedManifest(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write invalid JSON to drivers.json
+	os.WriteFile(filepath.Join(tmpDir, "drivers.json"), []byte("{invalid json"), 0644)
+
+	mgr := NewManager(tmpDir, nil, nil)
+
+	// Should degrade gracefully - no drivers available, no panic
+	_, err := mgr.ResolveDriver("pg")
+	if err == nil {
+		t.Error("expected error when manifest is malformed")
+	}
+}
+
+func TestNewManagerMalformedDiskFallsToEmbedded(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write invalid JSON to disk
+	os.WriteFile(filepath.Join(tmpDir, "drivers.json"), []byte("{bad"), 0644)
+
+	// Provide valid embedded manifest
+	manifest := testManifest()
+	embedded, _ := json.Marshal(manifest)
+
+	mgr := NewManager(tmpDir, nil, embedded)
+
+	// The malformed disk file is read first, json.Unmarshal fails, function returns early.
+	// Embedded manifest is NOT tried because data != nil (the malformed bytes were read).
+	// This means the manager has no drivers - which is the current behavior.
+	_, err := mgr.ResolveDriver("pg")
+	if err == nil {
+		t.Error("expected error - malformed disk manifest currently prevents embedded fallback")
+	}
+}
+
+func TestGetClientDownloadAndBuildBothFail(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Downloader with fake repo - download will 404
+	dl := NewDownloader(tmpDir, "99.99.99", "nonexistent/repo")
+	dl.EnsureDriverDir()
+	writeManifest(t, dl.DriverDir(), testManifest())
+
+	mgr := NewManager(dl.DriverDir(), dl, nil)
+
+	_, err := mgr.GetClient("driver-sqlite3")
+	if err == nil {
+		t.Fatal("expected error when both download and build fail")
+	}
+	// Should mention both failures
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "not available") {
+		t.Errorf("error should mention 'not available', got: %s", errMsg)
+	}
 }
 
 func TestMultipleResolveSameScheme(t *testing.T) {

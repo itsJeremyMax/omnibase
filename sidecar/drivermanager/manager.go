@@ -117,22 +117,28 @@ func (m *Manager) GetClient(binaryName string) (*driverclient.DriverClient, erro
 		if _, err2 := os.Stat(altPath); err2 == nil {
 			binaryPath = altPath
 		} else if m.downloader != nil {
-			// Binary not found locally; try downloading, then building from source
-			dlErr := m.downloader.DownloadDriver(binaryName)
-			if dlErr == nil {
-				binaryPath = filepath.Join(m.downloader.DriverDir(), binaryName+"-"+platform)
+			// Also check the downloader's versioned dir (may differ from m.driversDir)
+			dlDirPath := filepath.Join(m.downloader.DriverDir(), binaryName+"-"+platform)
+			if _, err3 := os.Stat(dlDirPath); err3 == nil {
+				binaryPath = dlDirPath
 			} else {
-				// Download failed; try building from source
-				sidecarDir := m.downloader.SidecarDir()
-				if sidecarDir != "" {
-					builtPath, buildErr := m.downloader.BuildDriverFromSource(binaryName, sidecarDir)
-					if buildErr == nil {
-						binaryPath = builtPath
-					} else {
-						return nil, fmt.Errorf("driver %s not available: download failed (%v), source build failed (%v)", binaryName, dlErr, buildErr)
-					}
+				// Binary not found locally; try downloading, then building from source
+				dlErr := m.downloader.DownloadDriver(binaryName)
+				if dlErr == nil {
+					binaryPath = filepath.Join(m.downloader.DriverDir(), binaryName+"-"+platform)
 				} else {
-					return nil, fmt.Errorf("driver %s not available and could not build from source: %w", binaryName, dlErr)
+					// Download failed; try building from source
+					sidecarDir := m.downloader.SidecarDir()
+					if sidecarDir != "" {
+						builtPath, buildErr := m.downloader.BuildDriverFromSource(binaryName, sidecarDir)
+						if buildErr == nil {
+							binaryPath = builtPath
+						} else {
+							return nil, fmt.Errorf("driver %s not available: download failed (%v), source build failed (%v)", binaryName, dlErr, buildErr)
+						}
+					} else {
+						return nil, fmt.Errorf("driver %s not available and could not build from source: %w", binaryName, dlErr)
+					}
 				}
 			}
 		}

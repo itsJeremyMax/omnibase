@@ -65,9 +65,17 @@ func (cm *ConnectionManager) Connect(id, dsn string) error {
 
 	// Enable foreign key enforcement for SQLite to match the default behavior
 	// of Postgres and MySQL. SQLite is the only major database that has FKs
-	// disabled by default — this makes behavior consistent across all databases.
+	// disabled by default -- this makes behavior consistent across all databases.
 	if u.UnaliasedDriver == "sqlite3" || u.Driver == "sqlite3" {
 		db.Exec("PRAGMA foreign_keys = ON")
+	}
+
+	// Force UTF-8 on MySQL connections. The go-sql-driver/mysql defaults to
+	// the server's character set, which is often latin1 on MySQL 5.7/8.0.
+	// MariaDB 10.6+ defaults to utf8mb4 server-side so it's unaffected.
+	// usql's ForceParams sets parseTime/loc/sql_mode but not charset.
+	if u.Driver == "mysql" || u.UnaliasedDriver == "mysql" {
+		db.Exec("SET NAMES utf8mb4")
 	}
 
 	// Get the usql metadata reader for schema introspection

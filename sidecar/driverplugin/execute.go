@@ -108,8 +108,15 @@ func translatePlaceholders(query string, style placeholderStyle) string {
 
 			isOperator := false
 			// ?|, ?&, ?? are always operators
-			if nextCh == '|' || nextCh == '&' || nextCh == '?' {
+			if nextCh == '|' || nextCh == '&' {
 				isOperator = true
+			} else if nextCh == '?' {
+				// ?? operator: emit both characters and skip next
+				isOperator = true
+				result.WriteByte(ch)
+				i++ // skip the second ?
+				result.WriteByte('?')
+				continue
 			} else {
 				// Check preceding non-whitespace character to determine context
 				prevCh := prevNonWhitespace(query, i)

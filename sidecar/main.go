@@ -227,18 +227,29 @@ func resolveDriversDir(dl *drivermanager.Downloader) string {
 		}
 	}
 
-	// 4. Fallback: current directory
+	// 4. Create the expected directory as a last resort
+	version := getVersion()
+	if home, err := os.UserHomeDir(); err == nil {
+		dir := filepath.Join(home, ".omnibase", "drivers", version)
+		os.MkdirAll(dir, 0755)
+		fmt.Fprintf(os.Stderr, "[sidecar] warning: drivers directory did not exist, created %s\n", dir)
+		return dir
+	}
+
+	fmt.Fprintln(os.Stderr, "[sidecar] warning: could not resolve drivers directory, using current directory")
 	return "."
 }
 
 func getVersion() string {
 	exe, err := os.Executable()
 	if err != nil {
+		fmt.Fprintln(os.Stderr, "[sidecar] warning: could not determine executable path, running in dev mode (auto-download disabled)")
 		return "dev"
 	}
 	versionFile := filepath.Join(filepath.Dir(exe), ".sidecar-version")
 	data, err := os.ReadFile(versionFile)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[sidecar] warning: version file not found at %s, running in dev mode (auto-download disabled)\n", versionFile)
 		return "dev"
 	}
 	return strings.TrimSpace(string(data))

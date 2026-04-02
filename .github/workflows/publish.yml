@@ -148,6 +148,7 @@ jobs:
 
           built=0
           failed=0
+          failed_drivers=""
           for d in drivers/*/; do
             name=$(basename "$d")
             [ ! -f "$d/main.go" ] && continue
@@ -156,17 +157,21 @@ jobs:
               binary="${binary}.exe"
             fi
             printf "  Building %-25s" "$name"
-            if go build -ldflags="$LDFLAGS" -o "build-out/$binary" "./$d" 2>/dev/null; then
+            if go build -ldflags="$LDFLAGS" -o "build-out/$binary" "./$d"; then
               echo "ok"
               built=$((built + 1))
             else
               echo "FAILED"
               failed=$((failed + 1))
+              failed_drivers="${failed_drivers} ${name}"
             fi
           done
 
           echo ""
           echo "Built: $built  Failed: $failed"
+          if [ $failed -gt 0 ]; then
+            echo "::warning::Failed to build drivers:${failed_drivers}"
+          fi
 
           # Fail the job if any core driver failed
           for core in postgres mysql sqlite3 sqlserver; do

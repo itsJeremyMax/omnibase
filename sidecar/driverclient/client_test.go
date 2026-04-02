@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func buildSqliteDriver(t *testing.T) string {
@@ -245,5 +248,68 @@ func TestDriverClientCrashRecovery(t *testing.T) {
 	// IsRunning should return false
 	if client.IsRunning() {
 		t.Fatal("expected IsRunning=false after Stop")
+	}
+}
+
+func TestDriverClientInFlightRequestDuringCrash(t *testing.T) {
+	binaryPath := buildSqliteDriver(t)
+
+	client, err := NewDriverClient(binaryPath)
+	if err != nil {
+		t.Fatalf("NewDriverClient failed: %v", err)
+	}
+
+	// Connect
+	params, _ := json.Marshal(map[string]interface{}{"id": "test", "dsn": "sqlite::memory:"})
+	_, err = client.Send("connect", params)
+	if err != nil {
+		t.Fatalf("connect failed: %v", err)
+	}
+
+	// Create a table with lots of rows so a query takes a moment
+	execParams, _ := json.Marshal(map[string]interface{}{
+		"id": "test", "query": "CREATE TABLE big (id INTEGER, data TEXT)",
+		"max_rows": 10, "timeout_ms": 5000,
+	})
+	client.Send("execute", execParams)
+
+	// Launch a goroutine that sends a request, then kill the process while it's in flight
+	var wg sync.WaitGroup
+	var sendErr error
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// This request may or may not complete before the kill
+		queryParams, _ := json.Marshal(map[string]interface{}{
+			"id": "test", "query": "SELECT 1",
+			"max_rows": 10, "timeout_ms": 30000,
+		})
+		_, sendErr = client.Send("execute", queryParams)
+	}()
+
+	// Give the goroutine a moment to issue the request, then kill the subprocess
+	time.Sleep(10 * time.Millisecond)
+	if client.cmd != nil && client.cmd.Process != nil {
+		client.cmd.Process.Kill()
+	}
+
+	// The in-flight request should unblock (not hang forever)
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Either the request completed before kill, or it got a DRIVER_CRASH error
+		if sendErr != nil {
+			if !strings.Contains(sendErr.Error(), "DRIVER_CRASH") && !strings.Contains(sendErr.Error(), "failed to write") {
+				t.Logf("in-flight request failed with: %v (expected DRIVER_CRASH or write error)", sendErr)
+			}
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("in-flight request hung after subprocess was killed - goroutine leak")
 	}
 }
