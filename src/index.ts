@@ -63,6 +63,27 @@ async function maybeShowUpdateNotice(): Promise<void> {
   }
 }
 
+function printUsage(): void {
+  console.log(`omnibase-mcp v${VERSION}
+
+Usage: omnibase-mcp [command]
+
+Commands:
+  init              Create a starter omnibase.config.yaml
+  status            Ping all connections and show health dashboard
+  tools <cmd>       Manage custom tools (list, add, remove, validate, test)
+  audit <cmd>       Query audit log (tail, search, clear)
+  drivers <cmd>     Manage database drivers (list, install, build, clean, path)
+  upgrade           Upgrade to the latest version
+
+Options:
+  --version, -V     Print version
+  --help, -h        Show this help
+
+When run without a command, starts the MCP server (stdio transport).
+Docs: https://github.com/itsJeremyMax/omnibase`);
+}
+
 // Handle CLI commands -- must prevent main() from running
 const cliCommand = process.argv[2];
 if (cliCommand) {
@@ -82,13 +103,12 @@ if (cliCommand) {
     } else if (cliCommand === "--version" || cliCommand === "-V") {
       console.log(`omnibase-mcp v${VERSION}`);
       process.exit(0);
+    } else if (cliCommand === "--help" || cliCommand === "-h" || cliCommand === "help") {
+      printUsage();
     } else {
-      // Unknown command -- fall through to MCP server
-      main().catch((err) => {
-        console.error("Failed to start omnibase:", err);
-        process.exit(1);
-      });
-      return;
+      console.error(`Unknown command: ${cliCommand}\n`);
+      printUsage();
+      process.exit(1);
     }
     await maybeShowUpdateNotice();
     process.exit(0);
