@@ -3,7 +3,7 @@
 Give your AI agent secure access to any database. PostgreSQL, MySQL, SQLite, and [50+ more](https://github.com/xo/usql) through a single MCP server. Works with Claude Code, OpenCode, GitHub Copilot, Cursor, and any MCP-compatible client.
 
 ```yaml
-# omnibase.config.yaml — all options: https://github.com/itsJeremyMax/omnibase#configuration-reference
+# omnibase.config.yaml
 connections:
   prod:
     dsn: $DATABASE_URL     # credentials stay in your environment
@@ -47,7 +47,7 @@ Add to your MCP config (`.mcp.json`):
 npx omnibase-mcp init
 ```
 
-Edit `omnibase.config.yaml` with your database connection ([all options](#configuration-reference), [more examples](examples/)):
+Edit `omnibase.config.yaml` with your database connection ([full configuration guide](docs/configuration.md), [examples](examples/)):
 
 ```yaml
 connections:
@@ -58,7 +58,7 @@ connections:
 
 DSNs starting with `$` resolve from environment variables (e.g. `dsn: $DATABASE_URL`).
 
-That's it. Your agent now has access to 13 database tools, plus any [custom tools](#custom-tools) you define.
+That's it. Your agent now has access to 14 database tools, plus any [custom tools](docs/custom-tools.md) you define.
 
 <details>
 <summary>Install from source (contributors)</summary>
@@ -81,7 +81,7 @@ Then point your MCP client at `node dist/src/index.js` with `cwd` set to your pr
 | Tool | What it does |
 |------|-------------|
 | `list_connections` | See all configured databases and their status |
-| `test_connection` | Ping a specific database — returns latency and driver error on failure |
+| `test_connection` | Ping a specific database. Returns latency and driver error on failure |
 | `list_tables` | Quick overview with row counts |
 | `get_schema` | Summary or detailed column/index/FK info |
 | `search_schema` | Find tables and columns by keyword |
@@ -115,9 +115,9 @@ Then point your MCP client at `node dist/src/index.js` with `cwd` set to your pr
 |------|-------------|
 | `query_history` | View recent query execution history with filtering by connection, status, and pagination |
 
-### Custom Tools
+## Custom Tools
 
-Define your own MCP tools as SQL templates in your config. Custom tools are registered alongside built-in tools and go through the same security pipeline.
+Define SQL templates as MCP tools in your config:
 
 ```yaml
 tools:
@@ -125,215 +125,56 @@ tools:
     connection: my-db
     description: "Get all active users"
     sql: "SELECT * FROM users WHERE active = true"
-    max_rows: 100
-
-  find_orders_by_status:
-    connection: my-db
-    description: "Find orders filtered by status"
-    permission: read-write
-    parameters:
-      status:
-        type: enum
-        description: "Order status"
-        values: [pending, shipped, delivered, cancelled]
-      min_amount:
-        type: number
-        description: "Minimum order amount"
-        required: false
-        default: 0
-    sql: >
-      SELECT * FROM orders
-      WHERE status = {status}
-        AND total >= {min_amount}
 ```
 
-Custom tools are registered as `custom_<name>` (e.g., `custom_get_active_users`). Parameters use `{param_name}` placeholders that are substituted as parameterized queries (not string interpolation) to prevent SQL injection.
-
-**Auto-generated descriptions:** If you omit the `description` field, it will be derived from leading `-- ` comment lines in your SQL template.
-
-**Parameter types:** `string`, `number`, `boolean`, `enum`
-
-**Optional overrides per tool:** `permission`, `max_rows`, `timeout` (fall back to connection/default values)
-
-**Multi-statement tools:** Use `steps` instead of `sql` to run multiple statements within a transaction. Mark one step with `return: true` to control which result goes back to the agent (defaults to the last step). If any step fails, the entire transaction is rolled back.
+Chain tools together with `compose` to build pipelines:
 
 ```yaml
 tools:
-  user_activity_report:
-    connection: my-db
-    description: "Generate user activity report"
-    parameters:
-      days:
-        type: number
-        description: "Days to look back"
-        required: false
-        default: 30
-    steps:
-      - sql: |
-          CREATE TEMP TABLE recent_activity AS
-          SELECT user_id, COUNT(*) as action_count
-          FROM events
-          WHERE created_at > datetime('now', '-' || {days} || ' days')
-          GROUP BY user_id
-      - sql: |
-          SELECT u.name, u.email, COALESCE(ra.action_count, 0) as actions
-          FROM users u
-          LEFT JOIN recent_activity ra ON ra.user_id = u.id
-          ORDER BY actions DESC
-        return: true
-```
-
-**Tool composition:** Use `compose` to build pipelines where each step can call another custom tool or run inline SQL. Results from earlier steps are available to later steps via `{step_name.column}` references, which expand to comma-separated values.
-
-```yaml
-tools:
-  get_active_user_ids:
-    connection: my-db
-    description: "Get active user IDs"
-    sql: "SELECT id FROM users WHERE active = true"
-
   active_user_orders:
     connection: my-db
     description: "Get orders for all active users"
     compose:
-      - tool: get_active_user_ids
+      - tool: get_active_users
         as: users
       - sql: "SELECT * FROM orders WHERE user_id IN ({users.id})"
-        as: orders
 ```
 
-Steps run sequentially and the last step's result is returned. Tool-ref steps can pass arguments via `args`, and inline SQL steps can reference results from any prior step. Circular dependencies between composed tools are detected at validation time.
+Also supports parameters, multi-statement transactions, and more.
+[Full custom tools guide →](docs/custom-tools.md)
 
-**Hot reload:** The server watches your config file and reloads custom tools automatically when it changes. No restart needed.
-
-**CLI management:**
-
-```bash
-npx omnibase-mcp tools list       # list all custom tools
-npx omnibase-mcp tools add        # interactive wizard to add a tool
-npx omnibase-mcp tools remove     # interactive wizard to remove a tool
-npx omnibase-mcp tools validate   # validate custom tool definitions
-npx omnibase-mcp tools test       # dry-run a tool with sample arguments
-npx omnibase-mcp status           # ping all connections, show health dashboard
-npx omnibase-mcp audit tail       # live tail the query audit log
-npx omnibase-mcp audit search <q> # search audit log by keyword
-npx omnibase-mcp audit clear      # clear the audit log
-npx omnibase-mcp upgrade          # upgrade to latest version
-npx omnibase-mcp upgrade --dry-run          # check for updates and show changelog
-npx omnibase-mcp upgrade --version 0.1.20   # switch to a specific version
-npx omnibase-mcp upgrade --allow-major      # allow major version changes
-npx omnibase-mcp --version        # print current version
-```
-
-Updates to a new major version (or downgrades across a major version boundary) require the `--allow-major` flag. The CLI also checks for updates in the background and shows a notice after commands when a newer version is available. Set `NO_UPDATE_NOTIFIER=1` to suppress this.
-
-## What Makes This Different
-
-**Every query is inspected before it reaches your database.**
-
-Omnibase parses and classifies each SQL statement. A `DELETE FROM users` without a WHERE clause gets flagged. A `pg_read_file('/etc/passwd')` gets blocked. A `WITH x AS (UPDATE ...) SELECT ...` is correctly identified as a write, not a read.
-
-This isn't just read-only mode. It's:
-
-- **Dangerous function blocking** across all engines — `pg_read_file`, `xp_cmdshell`, `LOAD_FILE`, `lo_export`, and dozens more
-- **Sensitive table protection** — `pg_shadow`, `mysql.user`, `sys.sql_logins` are inaccessible, even with schema-qualified names
-- **Permission levels per connection** — read-only, read-write, admin. The agent's access is independent of the database user's privileges
-- **Schema-aware validation** — `validate_query` checks that tables and columns actually exist, resolves aliases, catches fake columns in INSERT lists, and warns about bulk operations
-- **Write impact estimation** — before running an UPDATE or DELETE, see how many rows would be affected
-- **Portable parameterized queries** — use `?` everywhere, Omnibase translates to `$1` (Postgres), `:1` (Oracle), `@p1` (SQL Server) automatically
-
-## Configuration Reference
-
-### DSN formats
+## Configuration
 
 | Database | DSN |
 |----------|-----|
-| SQLite | `sqlite:./path/to/db.db` |
 | PostgreSQL | `pg://user:pass@host:5432/dbname` |
 | MySQL | `my://user:pass@host:3306/dbname` |
+| SQLite | `sqlite:./path/to/db.db` |
 | SQL Server | `mssql://user:pass@host/dbname` |
-| Oracle | `or://user:pass@host:1521/sid` |
 
-Any [usql-compatible DSN](https://github.com/xo/usql#database-support) works. DSNs starting with `$` resolve from environment variables.
+Any [usql-compatible DSN](https://github.com/xo/usql#database-support) works. [Full configuration guide →](docs/configuration.md)
 
-### Connection options
+## Security
 
-```yaml
-connections:
-  my-db:
-    dsn: $DATABASE_URL          # required
-    permission: read-only       # read-only | read-write | admin (default: read-only)
-    timeout: 30000              # query timeout in ms (default: 30000)
-    max_rows: 500               # max rows returned per query (default: 500)
-    max_value_length: 500       # truncate column values longer than this (default: 500)
-    allow_all_pragmas: false    # allow all SQLite PRAGMAs (default: false)
-    read_only_tables:           # optional — protect specific tables from writes
-      - users
-      - audit_log
-    schema_filter:              # optional — limit visible schemas/tables
-      schemas: [public]
+Every query is parsed and classified before it reaches your database.
 
-# Optional — override built-in defaults
-defaults:
-  permission: read-only         # default permission for connections that don't specify one
-  timeout: 30000                # default query timeout in ms
-  max_rows: 500                 # default max rows returned per query
+- Credentials never reach agents. DSNs resolve server-side
+- Read-only by default. Explicit opt-in for writes
+- Dangerous functions blocked across all engines
+- Multi-statement queries rejected
+- Table names validated against schema cache
+
+[Security deep dive & architecture →](docs/security.md)
+
+## CLI
+
+```bash
+npx omnibase-mcp status           # health dashboard
+npx omnibase-mcp tools list       # list custom tools
+npx omnibase-mcp upgrade          # upgrade to latest
 ```
 
-### Schema hints
-
-Omnibase embeds table and column names directly in tool descriptions so your AI agent sees the schema without needing to call `get_schema` first. This is enabled by default and updates automatically when a schema is fetched.
-
-```yaml
-schema_hints: true   # embed table/column names in tool descriptions (default: true)
-```
-
-### Audit logging
-
-Log every query to a local file for debugging and compliance. The `query_history` MCP tool lets agents view their own query history. By default, the last 10,000 entries are retained and older entries are automatically pruned.
-
-```yaml
-audit:
-  enabled: true
-  path: ./.omnibase/audit.log     # default: .omnibase/audit.log next to config file
-  format: jsonl                    # jsonl (default) or text
-  max_entries: 10000               # 0 = unlimited (default: 10000)
-```
-
-The audit log defaults to `.omnibase/audit.log` in the same directory as your config file, so each project gets its own log. By default, the last 10,000 entries are retained and older entries are automatically pruned.
-
-### Config discovery
-
-1. `OMNIBASE_CONFIG` environment variable
-2. `./omnibase.config.yaml` in working directory
-3. `~/.config/omnibase/config.yaml`
-
-### Permission levels
-
-| Level | SELECT | INSERT/UPDATE/DELETE | CREATE/ALTER/DROP |
-|-------|--------|---------------------|-------------------|
-| `read-only` | Yes | No | No |
-| `read-write` | Yes | Yes | No |
-| `admin` | Yes | Yes | Yes |
-
-## Architecture
-
-```
-MCP Client (Claude Code, OpenCode, GitHub Copilot, Cursor)
-        |  MCP Protocol (stdio)
-        v
-Omnibase MCP Server (TypeScript)
-  - Permission enforcement, query analysis, schema caching, output formatting
-        |  JSON-RPC over stdin/stdout
-        v
-Go Sidecar (usql driver packages)
-  - Native database connections, parameterized queries, schema introspection
-        |  Native drivers
-        v
-Any Database
-```
-
-The TypeScript server handles agent-facing concerns. The Go sidecar handles database concerns. Adding a new database driver only requires changes in Go.
+[Full CLI reference →](docs/cli.md)
 
 ## Development
 
@@ -345,19 +186,9 @@ pnpm run test:integration          # cross-database tests (needs Docker)
 cd sidecar && go test ./... -v     # Go sidecar tests
 ```
 
-## Security
-
-- Credentials never reach agents — DSNs resolve server-side, agents see connection names only
-- Read-only by default — every connection requires explicit opt-in for writes
-- SQL parsed and classified before execution — unrecognized statements default to "write" (fail safe)
-- Multi-statement queries rejected — prevents `SELECT 1; DROP TABLE users`
-- Dangerous functions blocked — filesystem access, OS execution, credential exposure across all engines
-- Table names validated against schema cache — prevents SQL injection in tool parameters
-- Sidecar auto-recovery — if the Go process crashes, it respawns transparently on the next call
-
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE)
+Apache 2.0. See [LICENSE](LICENSE)
 
 ## Disclaimer
 
