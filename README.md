@@ -1,4 +1,6 @@
-# Omnibase
+<p align="center">
+  <img src="assets/banner.svg" alt="Omnibase" width="100%" />
+</p>
 
 Give your AI agent secure access to any database. PostgreSQL, MySQL, SQLite, and [50+ more](https://github.com/xo/usql) through a single MCP server. Works with Claude Code, OpenCode, GitHub Copilot, Cursor, and any MCP-compatible client.
 
