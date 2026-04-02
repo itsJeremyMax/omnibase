@@ -130,9 +130,23 @@ jobs:
           go-version: "1.26"
           cache-dependency-path: sidecar/go.sum
 
-      - name: Install cross-compiler
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux' && matrix.cc != 'aarch64-linux-gnu-gcc'
+        run: sudo apt-get update && sudo apt-get install -y unixodbc-dev
+
+      - name: Install system dependencies (Linux cross-compile)
         if: matrix.cc == 'aarch64-linux-gnu-gcc'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list.d/*.list || true
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs)-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu unixodbc-dev:arm64
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install unixodbc
 
       - name: Build all driver plugins
         shell: bash
