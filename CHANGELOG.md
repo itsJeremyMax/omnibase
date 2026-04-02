@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.27](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.26...omnibase-mcp-v0.1.27) (2026-04-02)
+
+
+### Features
+
+* add reviewer-suggested MCP tool enhancements ([b2d948d](https://github.com/itsJeremyMax/omnibase/commit/b2d948d920d31cc7b5808d89da0166b42e5fc0a0))
+* dynamic driver plugin architecture ([a9786d3](https://github.com/itsJeremyMax/omnibase/commit/a9786d3ae1bea9ccf3f8729ca1bd62cb522a82f2))
+
+
+### Bug Fixes
+
+* add --help flag and error on unknown CLI commands ([c9fc15c](https://github.com/itsJeremyMax/omnibase/commit/c9fc15c5172e4ea03acc30630bee41fbe3f8cf3f))
+* decouple release pipeline from release-please output ([c442629](https://github.com/itsJeremyMax/omnibase/commit/c4426294cff06ec2ad3c3df88077881e32afa894))
+* harden driver system with audit fixes, checksum verification, and bug fixes ([c39b1f8](https://github.com/itsJeremyMax/omnibase/commit/c39b1f8ee1b4744dec9559958cb29465e1a42392))
+* update go base image to 1.26 to match sidecar go.mod requirement ([#37](https://github.com/itsJeremyMax/omnibase/issues/37)) ([b56603a](https://github.com/itsJeremyMax/omnibase/commit/b56603aaf21ce634e4e4ad2300c135fcf31047fc))
+
 ## [0.1.26](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.25...omnibase-mcp-v0.1.26) (2026-03-31)
 
 
