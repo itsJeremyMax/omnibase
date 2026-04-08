@@ -137,6 +137,7 @@ jobs:
       - name: Install system dependencies (Linux cross-compile)
         if: matrix.cc == 'aarch64-linux-gnu-gcc'
         run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
           sudo dpkg --add-architecture arm64
           sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list.d/*.list || true
           echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
