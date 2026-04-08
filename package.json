@@ -49,8 +49,8 @@
   ],
   "author": "Jeremy Max",
   "dependencies": {
-    "@clack/prompts": "^1.1.0",
-    "@modelcontextprotocol/sdk": "^1.28.0",
+    "@clack/prompts": "^1.2.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "cli-table3": "^0.6.5",
     "node-sql-parser": "^5.4.0",
     "picocolors": "^1.1.1",
@@ -60,11 +60,11 @@
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.5.2",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.3"
   }
 }
