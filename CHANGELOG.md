@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.30](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.29...omnibase-mcp-v0.1.30) (2026-04-08)
+
+
+### Bug Fixes
+
+* use DEB822 format for arm64 cross-compile apt sources on Ubuntu 24.04 ([cb87ce1](https://github.com/itsJeremyMax/omnibase/commit/cb87ce1e0bf64874ab6b378034ce5e3d0f0e8790))
+
 ## [0.1.29](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.28...omnibase-mcp-v0.1.29) (2026-04-08)
 
 
