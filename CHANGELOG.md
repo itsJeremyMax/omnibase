@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.29](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.28...omnibase-mcp-v0.1.29) (2026-04-08)
+
+
+### Bug Fixes
+
+* remove malformed Microsoft apt source before arm64 cross-compile, downgrade @types/node to ^22 ([2148c44](https://github.com/itsJeremyMax/omnibase/commit/2148c4486e379225b0b8370df9145091965a01d5))
+* set CGO include paths for unixodbc on macOS Apple Silicon ([ab1a54c](https://github.com/itsJeremyMax/omnibase/commit/ab1a54cbf40ae044094e8b92031b3b261abd78a6))
+
 ## [0.1.28](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.27...omnibase-mcp-v0.1.28) (2026-04-08)
 
 
