@@ -24,7 +24,7 @@ const REPO = "itsJeremyMax/omnibase";
 const BINARY_NAME = "omnibase-sidecar";
 const SIDECAR_DIR = join(__dirname, "..", "sidecar");
 const BIN_DIR = join(SIDECAR_DIR, "bin");
-const VERSION_FILE = join(SIDECAR_DIR, ".sidecar-version");
+const VERSION_FILE = join(BIN_DIR, ".sidecar-version");
 
 // Read version from package.json
 const packageJson = require(join(__dirname, "..", "package.json"));

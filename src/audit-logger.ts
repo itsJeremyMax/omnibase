@@ -14,6 +14,9 @@ export interface AuditEntry {
 }
 
 export class AuditLogger {
+  private writesSincePrune = 0;
+  private static readonly PRUNE_INTERVAL = 100;
+
   constructor(private config: AuditConfig) {}
 
   async log(entry: AuditEntry): Promise<void> {
@@ -48,9 +51,13 @@ export class AuditLogger {
 
       await appendFile(this.config.path, line, "utf-8");
 
-      // Prune if max_entries is set
+      // Prune periodically instead of on every write to avoid I/O amplification
       if (this.config.maxEntries > 0) {
-        await this.pruneIfNeeded();
+        this.writesSincePrune++;
+        if (this.writesSincePrune >= AuditLogger.PRUNE_INTERVAL) {
+          this.writesSincePrune = 0;
+          await this.pruneIfNeeded();
+        }
       }
     } catch {
       // Never crash the server due to audit failures

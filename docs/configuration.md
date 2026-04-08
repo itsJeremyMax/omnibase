@@ -8,7 +8,7 @@ Any [usql-compatible DSN](https://github.com/xo/usql#database-support) works. DS
 |----------|-----|
 | SQLite | `sqlite:./path/to/db.db` |
 | PostgreSQL | `pg://user:pass@host:5432/dbname` |
-| MySQL | `my://user:pass@host:3306/dbname` |
+| MySQL | `mysql://user:pass@host:3306/dbname` |
 | SQL Server | `mssql://user:pass@host/dbname` |
 | Oracle | `or://user:pass@host:1521/sid` |
 

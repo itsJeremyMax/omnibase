@@ -155,13 +155,15 @@ describe("AuditLogger", () => {
 
   it("prunes entries when exceeding maxEntries", async () => {
     const logPath = join(tmpDir, "audit.log");
+    // Pruning runs every 100 writes. Write exactly 100 entries with maxEntries=50
+    // so the prune triggers on the last write and trims to 50.
     const logger = new AuditLogger({
       enabled: true,
       path: logPath,
       format: "jsonl",
-      maxEntries: 3,
+      maxEntries: 50,
     });
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 100; i++) {
       await logger.log({
         tool: "t",
         connection: "db",
@@ -173,10 +175,10 @@ describe("AuditLogger", () => {
       });
     }
     const lines = readFileSync(logPath, "utf-8").trim().split("\n");
-    expect(lines).toHaveLength(3);
-    // Should keep the most recent 3
-    expect(JSON.parse(lines[0]).sql).toBe("SELECT 2");
-    expect(JSON.parse(lines[2]).sql).toBe("SELECT 4");
+    expect(lines).toHaveLength(50);
+    // Should keep the most recent 50 (entries 50-99)
+    expect(JSON.parse(lines[0]).sql).toBe("SELECT 50");
+    expect(JSON.parse(lines[lines.length - 1]).sql).toBe("SELECT 99");
   });
 
   it("readEntries returns entries in reverse chronological order", async () => {

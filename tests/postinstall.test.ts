@@ -6,7 +6,7 @@ import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync, chmodSy
 const POSTINSTALL = resolve(__dirname, "../scripts/postinstall.js");
 const SIDECAR_DIR = resolve(__dirname, "../sidecar");
 const BIN_DIR = join(SIDECAR_DIR, "bin");
-const VERSION_FILE = join(SIDECAR_DIR, ".sidecar-version");
+const VERSION_FILE = join(BIN_DIR, ".sidecar-version");
 const packageJson = require("../package.json");
 const VERSION = packageJson.version;
 const NODE = process.execPath;

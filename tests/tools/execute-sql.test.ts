@@ -180,6 +180,106 @@ describe("handleExecuteSql", () => {
       expect.objectContaining({ maxRows: 30 }),
     );
   });
+
+  it("blocks INSERT to read_only_tables", async () => {
+    const backend = makeMockBackend();
+    const cm = new ConnectionManager(backend);
+    const config: OmnibaseConfig = {
+      connections: {
+        rw: {
+          name: "rw",
+          dsn: "sqlite::memory:",
+          permission: "read-write",
+          timeout: 5000,
+          maxRows: 100,
+          readOnlyTables: ["audit_log"],
+        },
+      },
+      defaults: { permission: "read-only", timeout: 30000, maxRows: 500 },
+    };
+
+    await expect(
+      handleExecuteSql(config, cm, {
+        connection: "rw",
+        query: "INSERT INTO audit_log VALUES (1, 'test')",
+      }),
+    ).rejects.toThrow("read-only");
+  });
+
+  it("blocks DELETE FROM read_only_tables", async () => {
+    const backend = makeMockBackend();
+    const cm = new ConnectionManager(backend);
+    const config: OmnibaseConfig = {
+      connections: {
+        rw: {
+          name: "rw",
+          dsn: "sqlite::memory:",
+          permission: "read-write",
+          timeout: 5000,
+          maxRows: 100,
+          readOnlyTables: ["audit_log"],
+        },
+      },
+      defaults: { permission: "read-only", timeout: 30000, maxRows: 500 },
+    };
+
+    await expect(
+      handleExecuteSql(config, cm, {
+        connection: "rw",
+        query: "DELETE FROM audit_log WHERE id = 1",
+      }),
+    ).rejects.toThrow("read-only");
+  });
+
+  it("allows SELECT FROM read_only_tables", async () => {
+    const backend = makeMockBackend();
+    const cm = new ConnectionManager(backend);
+    const config: OmnibaseConfig = {
+      connections: {
+        rw: {
+          name: "rw",
+          dsn: "sqlite::memory:",
+          permission: "read-write",
+          timeout: 5000,
+          maxRows: 100,
+          readOnlyTables: ["audit_log"],
+        },
+      },
+      defaults: { permission: "read-only", timeout: 30000, maxRows: 500 },
+    };
+
+    // SELECT should NOT be blocked even though the table is in read_only_tables
+    const result = await handleExecuteSql(config, cm, {
+      connection: "rw",
+      query: "SELECT * FROM audit_log WHERE id = 1",
+    });
+    expect(result.row_count).toBe(1);
+  });
+
+  it("blocks UPDATE to read_only_tables", async () => {
+    const backend = makeMockBackend();
+    const cm = new ConnectionManager(backend);
+    const config: OmnibaseConfig = {
+      connections: {
+        rw: {
+          name: "rw",
+          dsn: "sqlite::memory:",
+          permission: "read-write",
+          timeout: 5000,
+          maxRows: 100,
+          readOnlyTables: ["users"],
+        },
+      },
+      defaults: { permission: "read-only", timeout: 30000, maxRows: 500 },
+    };
+
+    await expect(
+      handleExecuteSql(config, cm, {
+        connection: "rw",
+        query: "UPDATE users SET name = 'x' WHERE id = 1",
+      }),
+    ).rejects.toThrow("read-only");
+  });
 });
 
 describe("checkSqlSecurity", () => {

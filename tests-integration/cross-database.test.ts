@@ -24,6 +24,9 @@ import { handleGetIndexes } from "../src/tools/get-indexes.js";
 import { handleGetDistinctValues } from "../src/tools/get-distinct-values.js";
 import { handleGetTableStats } from "../src/tools/get-table-stats.js";
 import { handleValidateQuery } from "../src/tools/validate-query.js";
+import { handleTestConnection } from "../src/tools/test-connection.js";
+import { handleListConnections } from "../src/tools/list-connections.js";
+import { handleExplainQuery } from "../src/tools/explain-query.js";
 import { resolve } from "path";
 import { existsSync } from "fs";
 import type { OmnibaseConfig } from "../src/types.js";
@@ -135,6 +138,7 @@ for (const db of databases) {
     let cm: ConnectionManager;
     let config: OmnibaseConfig;
     let available = db.alwaysAvailable;
+    let originalDriversPath: string | undefined;
 
     beforeAll(async () => {
       // Check if Docker container is running for non-SQLite databases
@@ -143,6 +147,7 @@ for (const db of databases) {
         if (!available) return;
       }
 
+      originalDriversPath = process.env.OMNIBASE_DRIVERS_PATH;
       process.env.OMNIBASE_DRIVERS_PATH = DRIVERS_PATH;
       sidecar = new SidecarClient(SIDECAR_PATH);
       await sidecar.start();
@@ -169,6 +174,11 @@ defaults:
 
     afterAll(async () => {
       if (sidecar) await sidecar.stop();
+      if (originalDriversPath === undefined) {
+        delete process.env.OMNIBASE_DRIVERS_PATH;
+      } else {
+        process.env.OMNIBASE_DRIVERS_PATH = originalDriversPath;
+      }
     });
 
     // --- Schema tools ---
@@ -420,6 +430,67 @@ defaults:
           query: "SELECT 1; DROP TABLE users",
         }),
       ).rejects.toThrow("Multi-statement");
+    });
+
+    // --- test_connection ---
+
+    it("test_connection returns ok", async () => {
+      if (!available) return;
+      const result = await handleTestConnection(config, cm, {
+        connection: db.connectionName,
+      });
+      expect(result.status).toBe("ok");
+      expect(result.connection).toBe(db.connectionName);
+      expect(typeof result.latency_ms).toBe("number");
+    });
+
+    // --- list_connections ---
+
+    it("list_connections shows the connection", async () => {
+      if (!available) return;
+      const result = handleListConnections(config, cm);
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe(db.connectionName);
+    });
+
+    // --- explain_query ---
+
+    it("explain_query returns a plan for SELECT", async () => {
+      if (!available) return;
+      const result = await handleExplainQuery(config, cm, {
+        connection: db.connectionName,
+        query: "SELECT * FROM users WHERE id = 1",
+      });
+      expect(result).toHaveProperty("plan");
+      expect(result.plan.length).toBeGreaterThan(0);
+      expect(result).toHaveProperty("summary");
+      expect(result.summary.length).toBeGreaterThan(0);
+    });
+
+    // --- get_sample with WHERE and ORDER BY ---
+
+    it("get_sample with where clause", async () => {
+      if (!available) return;
+      const result = await handleGetSample(config, cm, {
+        connection: db.connectionName,
+        table: "users",
+        where: "role = 'admin'",
+      });
+      expect(result.row_count).toBe(1);
+    });
+
+    it("get_sample with order_by", async () => {
+      if (!available) return;
+      const result = await handleGetSample(config, cm, {
+        connection: db.connectionName,
+        table: "users",
+        limit: 1,
+        order_by: "name DESC",
+      });
+      expect(result.row_count).toBe(1);
+      // Charlie is last alphabetically descending
+      const nameIdx = result.columns.findIndex((c: string) => c.toLowerCase() === "name");
+      expect(result.rows[0][nameIdx]).toBe("Charlie");
     });
   });
 }

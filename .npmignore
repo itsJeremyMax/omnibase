@@ -1,8 +1,18 @@
 # Source (dist/ is published, src/ is not)
 src/
 
-# Sidecar — binary is downloaded at install time, source not needed
-sidecar/
+# Sidecar — binary is downloaded at install time, Go source not needed
+sidecar/bin/
+sidecar/drivers/
+sidecar/driverclient/
+sidecar/drivermanager/
+sidecar/driverplugin/
+sidecar/*.go
+sidecar/go.mod
+sidecar/go.sum
+sidecar/build-drivers.sh
+sidecar/.sidecar-version
+sidecar/app.db
 
 # Tests
 tests/

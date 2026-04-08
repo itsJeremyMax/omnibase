@@ -2,11 +2,8 @@ import pc from "picocolors";
 import Table from "cli-table3";
 import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
 import { readFileSync, writeFileSync } from "fs";
-import { resolve } from "path";
 import { resolveConfigPath, loadConfig, getConnection } from "../config.js";
 import { extractPlaceholders, validateCustomTools, substituteParameters } from "../custom-tools.js";
-import { SidecarClient } from "../sidecar-client.js";
-import { ConnectionManager } from "../connection-manager.js";
 import type { QueryResult } from "../types.js";
 
 function getConfigPath(): string {
@@ -510,6 +507,17 @@ async function test(): Promise<void> {
     }
   }
 
+  // steps and compose tools can't be tested with simple SQL substitution
+  if (tool.steps != null || tool.compose != null) {
+    console.error(
+      pc.red(
+        `Tool "${toolName}" uses ${tool.steps != null ? "steps" : "compose"} — ` +
+          `'tools test' only supports single-SQL tools.`,
+      ),
+    );
+    process.exit(1);
+  }
+
   let substituted: { sql: string; values: unknown[] };
   try {
     substituted = substituteParameters(tool.sql!, args, paramDefs);
@@ -526,23 +534,22 @@ async function test(): Promise<void> {
     );
   }
 
-  const sidecarPath =
-    process.env.OMNIBASE_SIDECAR_PATH ||
-    resolve(__dirname, "..", "..", "..", "sidecar", "bin", "omnibase-sidecar");
-
-  const sidecar = new SidecarClient(sidecarPath);
+  const { startSidecar } = await import("./sidecar-utils.js");
   const spinner = p.spinner();
   spinner.start("Connecting to database...");
 
+  let sidecar;
+  let cm;
   try {
-    await sidecar.start();
+    const started = await startSidecar();
+    sidecar = started.sidecar;
+    cm = started.cm;
   } catch (err) {
     spinner.stop("Failed to start sidecar");
     console.error(pc.red(`Sidecar error: ${err instanceof Error ? err.message : String(err)}`));
     process.exit(1);
   }
 
-  const cm = new ConnectionManager(sidecar);
   const connConfig = getConnection(config, tool.connection);
 
   spinner.message("Executing query...");

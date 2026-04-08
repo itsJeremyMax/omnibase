@@ -176,25 +176,20 @@ export async function handleExecuteSql(
     const category = classifyQuery(args.query);
     enforcePermission(connConfig.name, connConfig.permission, category);
 
-    // Check read_only_tables — block writes to protected tables
+    // Check read_only_tables — block writes to protected tables.
+    // Only matches write contexts: INSERT INTO, UPDATE, DELETE FROM, DROP/ALTER/TRUNCATE TABLE.
     if (
       (category === "write" || category === "ddl") &&
       connConfig.readOnlyTables &&
       connConfig.readOnlyTables.length > 0
     ) {
-      const protectedTables = new Set(connConfig.readOnlyTables.map((t) => t.toLowerCase()));
       const upper = args.query.trim().toUpperCase();
-      for (const table of protectedTables) {
-        const tableUpper = table.toUpperCase();
-        if (
-          upper.includes(`INTO ${tableUpper}`) ||
-          upper.includes(`UPDATE ${tableUpper}`) ||
-          upper.includes(`FROM ${tableUpper}`) ||
-          upper.includes(`TABLE ${tableUpper}`) ||
-          upper.includes(`INTO ${tableUpper} `) ||
-          upper.includes(`UPDATE ${tableUpper} `) ||
-          upper.includes(`FROM ${tableUpper} `)
-        ) {
+      for (const table of connConfig.readOnlyTables) {
+        const escaped = table.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").toUpperCase();
+        const pattern = new RegExp(
+          `(?:INTO|UPDATE|DELETE\\s+FROM|DROP\\s+TABLE|ALTER\\s+TABLE|TRUNCATE\\s+TABLE)\\s+${escaped}\\b`,
+        );
+        if (pattern.test(upper)) {
           throw new OmnibaseError(
             `Table '${table}' is read-only on this connection`,
             "TABLE_READ_ONLY",

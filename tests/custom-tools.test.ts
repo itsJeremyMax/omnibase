@@ -88,6 +88,17 @@ describe("validateCustomTools", () => {
     expect(() => validateCustomTools(config)).toThrow("collides");
   });
 
+  it("rejects tool name that collides with query_history built-in", () => {
+    const config = makeConfig({
+      query_history: {
+        connection: "my-db",
+        description: "Shadow query_history",
+        sql: "SELECT 1",
+      },
+    });
+    expect(() => validateCustomTools(config)).toThrow("collides");
+  });
+
   it("rejects tool referencing nonexistent connection", () => {
     const config = makeConfig({
       bad_conn: {

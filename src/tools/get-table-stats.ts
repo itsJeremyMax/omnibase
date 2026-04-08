@@ -40,14 +40,18 @@ export async function handleGetTableStats(
 
   // Build a single query that computes stats for all columns at once.
   // Uses a sample via LIMIT to avoid full table scans on large tables.
+  // Column names are quoted to handle reserved words and special characters.
+  const quoteIdent = (name: string) => `"${name.replace(/"/g, '""')}"`;
+  const safeAlias = (prefix: string, name: string) =>
+    `${prefix}${name.replace(/[^a-zA-Z0-9_]/g, "_")}`;
   const statExprs = tableInfo.columns.map((col) => {
-    const q = col.name;
+    const q = quoteIdent(col.name);
     return [
       `COUNT(*) AS _total`,
-      `SUM(CASE WHEN ${q} IS NULL THEN 1 ELSE 0 END) AS _null_${col.name}`,
-      `COUNT(DISTINCT ${q}) AS _distinct_${col.name}`,
-      `MIN(${q}) AS _min_${col.name}`,
-      `MAX(${q}) AS _max_${col.name}`,
+      `SUM(CASE WHEN ${q} IS NULL THEN 1 ELSE 0 END) AS ${safeAlias("_null_", col.name)}`,
+      `COUNT(DISTINCT ${q}) AS ${safeAlias("_distinct_", col.name)}`,
+      `MIN(${q}) AS ${safeAlias("_min_", col.name)}`,
+      `MAX(${q}) AS ${safeAlias("_max_", col.name)}`,
     ];
   });
 
@@ -89,8 +93,9 @@ export async function handleGetTableStats(
   const totalRows = Number(getValue("_total")) || 0;
 
   const columnStats: ColumnStats[] = tableInfo.columns.map((col) => {
-    const nullCount = Number(getValue(`_null_${col.name}`)) || 0;
-    const distinctCount = Number(getValue(`_distinct_${col.name}`)) || 0;
+    const alias = (prefix: string) => safeAlias(prefix, col.name);
+    const nullCount = Number(getValue(alias("_null_"))) || 0;
+    const distinctCount = Number(getValue(alias("_distinct_"))) || 0;
 
     return {
       name: col.name,
@@ -99,8 +104,8 @@ export async function handleGetTableStats(
       null_count: nullCount,
       null_percentage: totalRows > 0 ? Math.round((nullCount / totalRows) * 10000) / 100 : 0,
       distinct_count: distinctCount,
-      min: getValue(`_min_${col.name}`),
-      max: getValue(`_max_${col.name}`),
+      min: getValue(alias("_min_")),
+      max: getValue(alias("_max_")),
     };
   });
 

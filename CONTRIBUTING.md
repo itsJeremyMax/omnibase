@@ -13,8 +13,8 @@
 git clone https://github.com/itsJeremyMax/omnibase.git
 cd omnibase
 pnpm install        # installs dependencies, sets up husky hooks, downloads sidecar binary
-pnpm run build      # builds TypeScript
-pnpm run build:all  # builds TypeScript + Go sidecar (requires Go)
+pnpm build          # builds TypeScript
+pnpm build:all      # builds TypeScript + Go sidecar (requires Go)
 ```
 
 ## Development workflow
@@ -27,15 +27,15 @@ pnpm test
 cd sidecar && go test ./... -v && cd ..
 
 # Run integration tests (requires Docker)
-pnpm run test:docker:up        # start Postgres + MySQL containers
-pnpm run test:integration      # run cross-database tests
-pnpm run test:docker:down      # tear down containers
+pnpm test:docker:up            # start Postgres + MySQL containers
+pnpm test:integration          # run cross-database tests
+pnpm test:docker:down          # tear down containers
 
 # Format code
-pnpm run format
+pnpm format
 
 # Type check
-pnpm run lint
+pnpm lint
 ```
 
 ## Project structure
@@ -80,7 +80,7 @@ Source files are in `src/`. Tests mirror the source structure in `tests/`.
 
 After making changes:
 ```bash
-pnpm run lint       # type check
+pnpm lint           # type check
 pnpm test           # run unit tests
 ```
 
@@ -122,7 +122,7 @@ All changes go through pull requests. Direct pushes to `main` are blocked.
 1. Fork the repo and create a branch from `main`
 2. Make your changes
 3. Ensure all tests pass: `pnpm test` and `cd sidecar && go test ./...`
-4. Run `pnpm run format` to format code
+4. Run `pnpm format` to format code
 5. Open a PR — CI will run lint, unit tests, Go tests, and integration tests
 6. All CI checks must pass before merge
 

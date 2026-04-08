@@ -1,6 +1,6 @@
 import { parse as parseYaml } from "yaml";
 import { existsSync, readFileSync } from "fs";
-import { join, dirname } from "path";
+import { join, dirname, resolve } from "path";
 import {
   OmnibaseConfig,
   ConnectionConfig,
@@ -212,7 +212,7 @@ export function resolveConfigPath(cwd: string): string | null {
   // 1. OMNIBASE_CONFIG env var (highest priority)
   const envPath = process.env.OMNIBASE_CONFIG;
   if (envPath && existsSync(envPath)) {
-    return envPath;
+    return resolve(envPath);
   }
 
   // 2. Project-local

@@ -34,6 +34,7 @@ const BUILT_IN_TOOL_NAMES = new Set([
   "validate_query",
   "get_table_stats",
   "get_distinct_values",
+  "query_history",
 ]);
 
 const TOOL_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]*$/;
@@ -504,16 +505,16 @@ export function reloadCustomTools(
 }
 
 /**
- * Execute multi-step custom tool within a transaction.
+ * Core logic for executing multi-step custom tools within a transaction.
+ * Returns the raw QueryResult. Handles locking, temp table cleanup, and rollback.
  */
-async function executeCustomToolSteps(
+async function executeStepsRaw(
   config: OmnibaseConfig,
   cm: ConnectionManager,
-  toolName: string,
+  _toolName: string,
   tool: CustomToolConfig,
   args: Record<string, unknown>,
-  auditLogger?: AuditLogger,
-) {
+): Promise<QueryResult> {
   const connConfig = getConnection(config, tool.connection);
   const paramDefs = tool.parameters ?? {};
   const effectivePermission = tool.permission ?? connConfig.permission;
@@ -539,8 +540,6 @@ async function executeCustomToolSteps(
     maxRows: tool.maxRows ?? connConfig.maxRows,
     timeoutMs: tool.timeout ?? connConfig.timeout,
   };
-
-  const startMs = Date.now();
 
   // Acquire a per-connection lock to prevent concurrent transactions.
   // Most databases (especially SQLite) don't support nested transactions,
@@ -571,7 +570,7 @@ async function executeCustomToolSteps(
       }
       // Track temp tables for cleanup
       const tempMatch = sql.match(
-        /CREATE\s+TEMP(?:ORARY)?\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\S+)/i,
+        /CREATE\s+TEMP(?:ORARY)?\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s(;]+)/i,
       );
       if (tempMatch) {
         tempTablesCreated.push(tempMatch[1]!);
@@ -584,16 +583,6 @@ async function executeCustomToolSteps(
     } catch {
       // Ignore rollback errors
     }
-    void auditLogger?.log({
-      tool: `custom_${toolName}`,
-      connection: connConfig.name,
-      sql: tool.steps!.map((s) => s.sql).join("; "),
-      params: [],
-      durationMs: Date.now() - startMs,
-      rows: 0,
-      status: "error",
-      error: err instanceof Error ? err.message : String(err),
-    });
     throw err;
   } finally {
     // Clean up temp tables so the tool is idempotent across invocations
@@ -607,17 +596,48 @@ async function executeCustomToolSteps(
     releaseLock();
   }
 
-  const result = returnResult ?? lastResult!;
-  void auditLogger?.log({
-    tool: `custom_${toolName}`,
-    connection: connConfig.name,
-    sql: tool.steps!.map((s) => s.sql).join("; "),
-    params: [],
-    durationMs: Date.now() - startMs,
-    rows: result.rowCount,
-    status: "ok",
-  });
-  return formatQueryResult(result, tool.maxRows ?? connConfig.maxRows, connConfig.maxValueLength);
+  return returnResult ?? lastResult!;
+}
+
+/**
+ * Execute multi-step custom tool within a transaction (formatted output).
+ */
+async function executeCustomToolSteps(
+  config: OmnibaseConfig,
+  cm: ConnectionManager,
+  toolName: string,
+  tool: CustomToolConfig,
+  args: Record<string, unknown>,
+  auditLogger?: AuditLogger,
+) {
+  const connConfig = getConnection(config, tool.connection);
+  const startMs = Date.now();
+
+  try {
+    const result = await executeStepsRaw(config, cm, toolName, tool, args);
+    void auditLogger?.log({
+      tool: `custom_${toolName}`,
+      connection: connConfig.name,
+      sql: tool.steps!.map((s) => s.sql).join("; "),
+      params: [],
+      durationMs: Date.now() - startMs,
+      rows: result.rowCount,
+      status: "ok",
+    });
+    return formatQueryResult(result, tool.maxRows ?? connConfig.maxRows, connConfig.maxValueLength);
+  } catch (err) {
+    void auditLogger?.log({
+      tool: `custom_${toolName}`,
+      connection: connConfig.name,
+      sql: tool.steps!.map((s) => s.sql).join("; "),
+      params: [],
+      durationMs: Date.now() - startMs,
+      rows: 0,
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 }
 
 /**
@@ -717,60 +737,7 @@ async function executeRawCustomTool(
   }
 
   if (tool.steps != null) {
-    // For steps tools, execute and get the raw result
-    const connConfig = getConnection(config, tool.connection);
-    const paramDefs = tool.parameters ?? {};
-    const effectivePermission = tool.permission ?? connConfig.permission;
-
-    const categoryRank: Record<string, number> = { read: 0, write: 1, ddl: 2 };
-    let maxCategory: "read" | "write" | "ddl" = "read";
-    const substituted: { sql: string; values: unknown[] }[] = [];
-
-    for (const step of tool.steps!) {
-      const { sql, values } = substituteParameters(step.sql, args, paramDefs);
-      checkSqlSecurity(sql, connConfig);
-      const category = classifyQuery(sql);
-      if (categoryRank[category]! > categoryRank[maxCategory]!) {
-        maxCategory = category;
-      }
-      substituted.push({ sql, values });
-    }
-
-    enforcePermission(connConfig.name, effectivePermission, maxCategory);
-
-    const execOpts = {
-      maxRows: tool.maxRows ?? connConfig.maxRows,
-      timeoutMs: tool.timeout ?? connConfig.timeout,
-    };
-
-    const releaseLock = await cm.acquireTransactionLock(connConfig.name);
-    await cm.execute(connConfig, "BEGIN", [], execOpts);
-
-    let returnResult: QueryResult | null = null;
-    let lastResult: QueryResult | null = null;
-
-    try {
-      for (let i = 0; i < tool.steps!.length; i++) {
-        const { sql, values } = substituted[i]!;
-        const stepResult = await cm.execute(connConfig, sql, values, execOpts);
-        lastResult = stepResult;
-        if (tool.steps![i]!.return === true) {
-          returnResult = stepResult;
-        }
-      }
-      await cm.execute(connConfig, "COMMIT", [], execOpts);
-    } catch (err) {
-      try {
-        await cm.execute(connConfig, "ROLLBACK", [], execOpts);
-      } catch {
-        // Ignore rollback errors
-      }
-      throw err;
-    } finally {
-      releaseLock();
-    }
-
-    return returnResult ?? lastResult!;
+    return executeStepsRaw(config, cm, toolName, tool, args);
   }
 
   // Single SQL tool

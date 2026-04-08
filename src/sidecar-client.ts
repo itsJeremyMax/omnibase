@@ -201,6 +201,8 @@ export class SidecarClient implements DatabaseBackend {
     await this.send("disconnect", { id });
   }
 
+  private static readonly DEFAULT_TIMEOUT_MS = 120_000; // 2 minutes
+
   private async send(method: string, params: Record<string, unknown>): Promise<unknown> {
     await this.ensureRunning();
 
@@ -216,8 +218,32 @@ export class SidecarClient implements DatabaseBackend {
       params,
     };
 
+    // Use the RPC-level timeout if provided, otherwise fall back to a generous default.
+    // This ensures we never hang forever if the sidecar stalls without crashing.
+    const timeoutMs = (params.timeout_ms as number | undefined) ?? SidecarClient.DEFAULT_TIMEOUT_MS;
+
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(
+          new OmnibaseError(
+            `Sidecar request timed out after ${timeoutMs}ms (method: ${method})`,
+            "SIDECAR_TIMEOUT",
+          ),
+        );
+      }, timeoutMs);
+
+      this.pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      });
+
       this.process!.stdin!.write(JSON.stringify(request) + "\n");
     });
   }
