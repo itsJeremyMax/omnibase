@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.28](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.27...omnibase-mcp-v0.1.28) (2026-04-08)
+
+
+### Features
+
+* add omnibase logo and banner ([f307f34](https://github.com/itsJeremyMax/omnibase/commit/f307f34be387883df6e0c24c722412d08b69c467))
+
+
+### Bug Fixes
+
+* install unixodbc-dev headers for ODBC driver builds in CI ([0402b0d](https://github.com/itsJeremyMax/omnibase/commit/0402b0da1d04e6c1601cbc19aed4ea09782bd3bf))
+* relax get_table_stats assertion for MySQL, update dependencies ([f0fe54b](https://github.com/itsJeremyMax/omnibase/commit/f0fe54ba93c043399b18c2c09fcbdae29c30fd61))
+* sidecar version file path, 10 bug fixes, README redesign, integration tests ([054cefd](https://github.com/itsJeremyMax/omnibase/commit/054cefd1d01a9d50d5d47e0f12b3a1eb025910cc))
+* sync package.json version ranges with lockfile ([ee75a54](https://github.com/itsJeremyMax/omnibase/commit/ee75a5426a724c25cf2420d51017e44d79ac35c8))
+
 ## [0.1.27](https://github.com/itsJeremyMax/omnibase/compare/omnibase-mcp-v0.1.26...omnibase-mcp-v0.1.27) (2026-04-02)
 
 
