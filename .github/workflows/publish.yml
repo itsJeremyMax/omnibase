@@ -137,11 +137,33 @@ jobs:
       - name: Install system dependencies (Linux cross-compile)
         if: matrix.cc == 'aarch64-linux-gnu-gcc'
         run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
           sudo dpkg --add-architecture arm64
-          sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list.d/*.list || true
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs)-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+
+          # Ubuntu 24.04 uses DEB822 .sources format. Replace the default sources
+          # with architecture-pinned versions so amd64 uses the Azure mirror and
+          # arm64 uses ports.ubuntu.com.
+          CODENAME=$(lsb_release -cs)
+          sudo rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources
+          sudo rm -f /etc/apt/sources.list
+
+          cat <<SOURCES | sudo tee /etc/apt/sources.list.d/ubuntu-amd64.sources
+          Types: deb
+          URIs: http://azure.archive.ubuntu.com/ubuntu/
+          Suites: ${CODENAME} ${CODENAME}-updates ${CODENAME}-backports ${CODENAME}-security
+          Components: main restricted universe multiverse
+          Architectures: amd64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          SOURCES
+
+          cat <<SOURCES | sudo tee /etc/apt/sources.list.d/ubuntu-arm64.sources
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports/
+          Suites: ${CODENAME} ${CODENAME}-updates ${CODENAME}-backports ${CODENAME}-security
+          Components: main restricted universe multiverse
+          Architectures: arm64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          SOURCES
+
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu unixodbc-dev:arm64
 
