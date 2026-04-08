@@ -147,7 +147,10 @@ jobs:
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install unixodbc
+        run: |
+          brew install unixodbc
+          echo "CGO_CFLAGS=-I$(brew --prefix unixodbc)/include" >> $GITHUB_ENV
+          echo "CGO_LDFLAGS=-L$(brew --prefix unixodbc)/lib" >> $GITHUB_ENV
 
       - name: Build all driver plugins
         shell: bash
