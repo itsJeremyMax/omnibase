@@ -13,7 +13,7 @@ RUN mkdir -p bin && \
     cp drivers.json bin/
 
 # Stage 2: Build TypeScript
-FROM node:22-alpine AS ts-builder
+FROM node:26-alpine AS ts-builder
 RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /build
 COPY package.json pnpm-lock.yaml ./
@@ -23,7 +23,7 @@ COPY src/ src/
 RUN pnpm exec tsc
 
 # Stage 3: Runtime
-FROM node:22-alpine
+FROM node:26-alpine
 RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /app
 
